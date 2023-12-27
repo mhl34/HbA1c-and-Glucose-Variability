@@ -16,6 +16,7 @@ from DataProcessor import DataProcessor
 from glycemicDataset import glycemicDataset
 from pp5 import pp5
 from Conv1DModel import Conv1DModel
+from torch.optim.lr_scheduler import StepLR
 
 class runModel:
     def __init__(self, mainDir):
@@ -23,9 +24,11 @@ class runModel:
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.max_norm = 1
         self.seq_length = 28
-        self.num_epochs = 5
+        self.num_epochs = 20
+        self.dropout_p = 0.5
 
     def train(self, samples, model):
+        model.train()
         # load in classes
         dataProcessor = DataProcessor(self.mainDir)
         pp5vals = pp5()
@@ -42,7 +45,8 @@ class runModel:
         train_dataloader = DataLoader(train_dataset, batch_size = 32, shuffle = True)
 
         criterion = nn.CrossEntropyLoss()
-        optimizer = optim.Adam(model.parameters())
+        optimizer = optim.Adam(model.parameters(), lr = 1e-3, weight_decay = 1e-5)
+        scheduler = StepLR(optimizer, step_size=5, gamma=0.1)
 
 
         for epoch in range(self.num_epochs):
@@ -70,10 +74,13 @@ class runModel:
 
                 lossLst.append(loss.item())
                 accLst.append(accuracy)
+            
+            scheduler.step()
 
-            print(f"epoch {epoch} training loss: {sum(lossLst)/len(lossLst)} training accuracy: {sum(accLst)/len(accLst)}")
+            print(f"epoch {epoch} training loss: {sum(lossLst)/len(lossLst)} learning rate: {scheduler.get_lr()} training accuracy: {sum(accLst)/len(accLst)}")
 
     def evaluate(self, samples, model):
+        model.eval()
         # load in classes
         dataProcessor = DataProcessor(self.mainDir)
         pp5vals = pp5()
@@ -114,14 +121,15 @@ class runModel:
                     lossLst.append(loss.item())
                     accLst.append(accuracy)
 
+                print(preds, target)
 
                 print(f"epoch {epoch} training loss: {sum(lossLst)/len(lossLst)} training accuracy: {sum(accLst)/len(accLst)}")
 
     def run(self):
-        model = Conv1DModel()
+        model = Conv1DModel(self.dropout_p)
         samples = [str(i).zfill(3) for i in range(1, 17)]
-        trainSamples = samples[:-2]
-        valSamples = samples[-2:]
+        trainSamples = samples[:-5]
+        valSamples = samples[-5:]
         self.train(trainSamples, model)
         self.evaluate(valSamples, model)
 
