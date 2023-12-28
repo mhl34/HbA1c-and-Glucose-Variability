@@ -9,6 +9,7 @@ import random
 import datetime
 import sys
 import os
+import argparse
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 import torch.nn.functional as F
@@ -16,16 +17,30 @@ from DataProcessor import DataProcessor
 from glycemicDataset import glycemicDataset
 from pp5 import pp5
 from Conv1DModel import Conv1DModel
+from LstmModel import LstmModel
 from torch.optim.lr_scheduler import StepLR
 
 class runModel:
     def __init__(self, mainDir):
+        parser = argparse.ArgumentParser()
+        parser.add_argument("-m", "--modelType", dest="modelType", help="input the type of model you want to use")
+        args = parser.parse_args()
+        self.modelType = args.modelType
+        self.dtype = torch.double if self.modelType == "conv1d" else torch.float64
         self.mainDir = mainDir
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.max_norm = 1
         self.seq_length = 28
         self.num_epochs = 20
         self.dropout_p = 0.5
+        self.model = self.modelChooser(self.modelType)
+
+    def modelChooser(self, modelType):
+        if modelType == "conv1d":
+            return Conv1DModel(self.dropout_p)
+        elif modelType == "lstm":
+            return LstmModel(input_size = self.seq_length, hidden_size = 100, num_layers = 8, batch_first = True, dropout = 0.5, dtype = self.dtype)
+        return None
 
     def train(self, samples, model):
         model.train()
@@ -57,7 +72,7 @@ class runModel:
             accLst = []
 
             for batch_idx, (eda, hr, temp, hba1c) in progress_bar:
-                input = torch.stack((eda, hr, temp)).permute((1,0,2)).to(torch.double)
+                input = torch.stack((eda, hr, temp)).permute((1,0,2)).to(self.dtype)
                 target = hba1c
 
                 output = model(input)
@@ -107,7 +122,7 @@ class runModel:
                 accLst = []
 
                 for batch_idx, (eda, hr, temp, hba1c) in progress_bar:
-                    input = torch.stack((eda, hr, temp)).permute((1,0,2)).to(torch.double)
+                    input = torch.stack((eda, hr, temp)).permute((1,0,2)).to(self.dtype)
                     target = hba1c
 
                     output = model(input)
@@ -126,12 +141,11 @@ class runModel:
                 print(f"epoch {epoch} training loss: {sum(lossLst)/len(lossLst)} training accuracy: {sum(accLst)/len(accLst)}")
 
     def run(self):
-        model = Conv1DModel(self.dropout_p)
         samples = [str(i).zfill(3) for i in range(1, 17)]
         trainSamples = samples[:-5]
         valSamples = samples[-5:]
-        self.train(trainSamples, model)
-        self.evaluate(valSamples, model)
+        self.train(trainSamples, self.model)
+        self.evaluate(valSamples, self.model)
 
 if __name__ == "__main__":
     mainDir = "/home/mhl34/big-ideas-lab-glycemic-variability-and-wearable-device-data-1.1.0/"
