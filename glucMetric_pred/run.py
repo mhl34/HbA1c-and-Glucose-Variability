@@ -18,13 +18,15 @@ from glycemicDataset import glycemicDataset
 from pp5 import pp5
 from Conv1DModel import Conv1DModel
 from LstmModel import LstmModel
+from TransformerModel import TransformerModel
 from torch.optim.lr_scheduler import StepLR
 
 class runModel:
     def __init__(self, mainDir):
         parser = argparse.ArgumentParser()
         parser.add_argument("-m", "--modelType", dest="modelType", help="input the type of model you want to use")
-        parser.add_argument("-gm", "--glucMetric", dest="glucMetric", help="input the type of glucose metric you want to regress for")
+        parser.add_argument("-gm", "--glucMetric", default = "mean", dest="glucMetric", help="input the type of glucose metric you want to regress for")
+        parser.add_argument("-e", "--epochs", default=100, dest="num_epochs", help="input the number of epochs to run")
         args = parser.parse_args()
         self.modelType = args.modelType
         self.glucMetric = args.glucMetric
@@ -33,7 +35,7 @@ class runModel:
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.max_norm = 1
         self.seq_length = 28
-        self.num_epochs = 50
+        self.num_epochs = int(args.num_epochs)
         self.dropout_p = 0.5
         self.model = self.modelChooser(self.modelType)
 
@@ -42,6 +44,8 @@ class runModel:
             return Conv1DModel(self.dropout_p)
         elif modelType == "lstm":
             return LstmModel(input_size = self.seq_length, hidden_size = 100, num_layers = 8, batch_first = True, dropout = 0.5, dtype = self.dtype)
+        elif modelType == "transformer":
+            return TransformerModel(num_features = 512, num_head = 64, seq_length = self.seq_length, dropout_p = 0.5, norm_first = True, dtype = self.dtype)
         return None
 
     def train(self, samples, model):
@@ -62,7 +66,7 @@ class runModel:
         train_dataloader = DataLoader(train_dataset, batch_size = 32, shuffle = True)
 
         criterion = nn.MSELoss()
-        optimizer = optim.Adam(model.parameters(), lr = 1e-2, weight_decay = 1e-5)
+        optimizer = optim.Adam(model.parameters(), lr = 1e-3, weight_decay = 1e-5)
         scheduler = StepLR(optimizer, step_size=int(self.num_epochs/5), gamma=0.1)
 
 
@@ -89,7 +93,7 @@ class runModel:
 
             scheduler.step()
 
-            print(f"epoch {epoch} training loss: {sum(lossLst)/len(lossLst)} learning rate: {scheduler.get_lr()} training accuracy: {sum(accLst)/len(accLst)}")
+            print(f"epoch {epoch + 1} training loss: {sum(lossLst)/len(lossLst)} learning rate: {scheduler.get_lr()} training accuracy: {sum(accLst)/len(accLst)}")
 
     def evaluate(self, samples, model):
         model.eval()
@@ -120,7 +124,7 @@ class runModel:
 
                 for batch_idx, (eda, hr, temp, target) in progress_bar:
                     input = torch.stack((eda, hr, temp)).permute((1,0,2)).to(self.dtype)
-
+                
                     output = model(input).to(self.dtype).squeeze()
 
                     loss = criterion(output, target)
@@ -131,7 +135,7 @@ class runModel:
                 print(f"epoch {epoch} training loss: {sum(lossLst)/len(lossLst)} training accuracy: {sum(accLst)/len(accLst)}")
 
     def mape(self, pred, target):
-        return torch.sum(torch.div(torch.abs(target - pred), target)) / pred.size(0)
+        return (torch.sum(torch.div(torch.abs(target - pred), target)) / pred.size(0)).item()
 
     def run(self):
         samples = [str(i).zfill(3) for i in range(1, 17)]
