@@ -43,9 +43,9 @@ class runModel:
         if modelType == "conv1d":
             return Conv1DModel(self.dropout_p)
         elif modelType == "lstm":
-            return LstmModel(input_size = self.seq_length, hidden_size = 100, num_layers = 8, batch_first = True, dropout = 0.5, dtype = self.dtype)
+            return LstmModel(input_size = self.seq_length, hidden_size = 100, num_layers = 8, batch_first = True, dropout = self.dropout_p, dtype = self.dtype)
         elif modelType == "transformer":
-            return TransformerModel(num_features = 512, num_head = 64, seq_length = self.seq_length, dropout_p = 0.5, norm_first = True, dtype = self.dtype)
+            return TransformerModel(num_features = 1024, num_head = 256, seq_length = self.seq_length, dropout_p = self.dropout_p, norm_first = True, dtype = self.dtype)
         return None
 
     def train(self, samples, model):

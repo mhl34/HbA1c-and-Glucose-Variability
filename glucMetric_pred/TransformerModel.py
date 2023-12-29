@@ -34,13 +34,17 @@ class TransformerModel(nn.Module):
 
         self.embedding = nn.Linear(self.seq_length, self.num_features, dtype = self.dtype)
 
-        self.encoder_eda = nn.TransformerEncoderLayer(d_model=self.num_features, nhead=self.num_head, dtype = self.dtype)
-        self.encoder_hr = nn.TransformerEncoderLayer(d_model=self.num_features, nhead=self.num_head, dtype = self.dtype)
-        self.encoder_temp = nn.TransformerEncoderLayer(d_model=self.num_features, nhead=self.num_head, dtype = self.dtype)
+        self.encoder_eda = nn.TransformerEncoderLayer(d_model=self.num_features, nhead=self.num_head, norm_first = True, dtype = self.dtype)
+        self.encoder_hr = nn.TransformerEncoderLayer(d_model=self.num_features, nhead=self.num_head, norm_first = True, dtype = self.dtype)
+        self.encoder_temp = nn.TransformerEncoderLayer(d_model=self.num_features, nhead=self.num_head, norm_first = True, dtype = self.dtype)
 
         self.fc1 = nn.Linear(self.num_features * 3, 256, dtype = self.dtype)
         self.fc2 = nn.Linear(256, 64, dtype = self.dtype)
         self.fc3 = nn.Linear(64, 1, dtype = self.dtype)
+
+        # nn.init.xavier_uniform_(self.fc1.weight)
+        # nn.init.xavier_uniform_(self.fc2.weight)
+        # nn.init.xavier_uniform_(self.fc3.weight)
 
         self.dropout = nn.Dropout(dropout_p)
 
