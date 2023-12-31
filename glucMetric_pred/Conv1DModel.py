@@ -1,9 +1,11 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F 
+import random
+from ChannelFC import ChannelFC
 
 class Conv1DModel(nn.Module):
-    def __init__(self, dropout_p = 0):
+    def __init__(self, ssl, dropout_p = 0):
         super(Conv1DModel, self).__init__()
         # input: 28 x 3
         # 3 channels for each of the different modalities
@@ -18,6 +20,15 @@ class Conv1DModel(nn.Module):
         self.dropout = nn.Dropout(dropout_p)
         self.fc1 = nn.Linear(64 * 6, 64)
         self.fc2 = nn.Linear(64, 1)
+        self.mask_len = 14
+        self.ssl = ssl
+
+        self.decoder = nn.Sequential(
+            ChannelFC(64, 6),
+            nn.ConvTranspose1d(in_channels = 64, out_channels = 16, kernel_size = 5, stride = 1),
+            nn.ConvTranspose1d(in_channels = 16, out_channels = 8, kernel_size = 3, stride = 1),
+            nn.ConvTranspose1d(in_channels = 8, out_channels = 3, kernel_size = 6, stride = 2)
+        )
 
     
     def forward(self, x):
@@ -25,11 +36,22 @@ class Conv1DModel(nn.Module):
         out = F.relu(self.conv1(x))
         out = F.relu(self.conv2(out))
         out = F.relu(self.conv3(out))
+        masked_out = None
+        if self.ssl and self.training:
+            masked_x = self.getMasked(x, mask_len = self.mask_len)
+            masked_out = F.relu(self.conv1(masked_x))
+            masked_out = F.relu(self.conv2(masked_out))
+            masked_out = F.relu(self.conv3(masked_out))
+            masked_out = self.decoder(out)
         out = out.view(out.size(0), -1)
-        if self.training:
-            out = self.fc1(self.dropout(out))
-            out = self.fc2(self.dropout(out))
-            return out
-        out = self.fc1(out)
-        out = self.fc2(out)
-        return out
+        out = self.fc1(self.dropout(out))
+        out = self.fc2(self.dropout(out))
+        return masked_out, out
+    
+    def getMasked(self, data, mask_len = 5):
+        mask = torch.ones_like(data)
+        _, _, seq_len = mask.shape
+        index = random.randint(0, seq_len - mask_len - 1)
+        mask[:,:,index:index + mask_len] = 0
+        data = data * mask
+        return data
