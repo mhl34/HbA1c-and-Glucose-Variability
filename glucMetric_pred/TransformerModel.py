@@ -63,13 +63,9 @@ class TransformerModel(nn.Module):
         tempTransformerOut = self.encoder_temp(temp)
 
         out = torch.cat((edaTransformerOut, hrTransformerOut, tempTransformerOut), 1).to(self.dtype)
-
-        if self.training:
-            out = self.fc1(self.dropout(out))
-            out = self.fc2(self.dropout(out))
-            out = self.fc3(self.dropout(out))
-            return out
-        out = self.fc1(out)
-        out = self.fc2(out)
-        out = self.fc3(out)
-        return out
+        masked_out = None
+        
+        out = self.fc1(self.dropout(out))
+        out = self.fc2(self.dropout(out))
+        out = self.fc3(self.dropout(out))
+        return masked_out, out
