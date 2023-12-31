@@ -47,6 +47,7 @@ class TransformerModel(nn.Module):
         # nn.init.xavier_uniform_(self.fc3.weight)
 
         self.dropout = nn.Dropout(dropout_p)
+        self.decoder = nn.Identity()
 
     # function: forward of model
     # input: src, tgt, tgt_mask
@@ -64,7 +65,7 @@ class TransformerModel(nn.Module):
 
         out = torch.cat((edaTransformerOut, hrTransformerOut, tempTransformerOut), 1).to(self.dtype)
         masked_out = None
-        
+
         out = self.fc1(self.dropout(out))
         out = self.fc2(self.dropout(out))
         out = self.fc3(self.dropout(out))

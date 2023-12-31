@@ -18,6 +18,7 @@ class LstmModel(nn.Module):
         self.fc2 = nn.Linear(64, 1, dtype = self.dtype)
         self.ssl = True
         self.mask_len = 7
+        self.decoder = nn.Identity()
 
     def forward(self, x):
         out, _ = self.lstm(x)

@@ -97,8 +97,7 @@ class runModel:
 
                 lossLst.append(loss.item())
                 accLst.append(1 - self.mape(output, target))
-                
-            print(maskOut, input)
+
             scheduler.step()
 
             print(f"epoch {epoch + 1} training loss: {sum(lossLst)/len(lossLst)} learning rate: {scheduler.get_last_lr()} training accuracy: {sum(accLst)/len(accLst)}")
