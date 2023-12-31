@@ -24,8 +24,8 @@ class LstmModel(nn.Module):
         # out shape (32, 3, 100)
         masked_out = None
         out = out.reshape(out.size(0), -1).to(self.dtype)
-        out = self.fc1(out)
-        out = self.fc2(out)
+        out = self.fc1(self.dropout(out))
+        out = self.fc2(self.dropout(out))
         return masked_out, out
     
     def getMasked(self, data, mask_len = 5):
