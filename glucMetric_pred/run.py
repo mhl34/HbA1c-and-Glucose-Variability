@@ -20,6 +20,7 @@ from Conv1DModel import Conv1DModel
 from LstmModel import LstmModel
 from TransformerModel import TransformerModel
 from torch.optim.lr_scheduler import StepLR
+from SslLoss import SslLoss
 
 class runModel:
     def __init__(self, mainDir):
@@ -27,6 +28,7 @@ class runModel:
         parser.add_argument("-m", "--modelType", dest="modelType", help="input the type of model you want to use")
         parser.add_argument("-gm", "--glucMetric", default = "mean", dest="glucMetric", help="input the type of glucose metric you want to regress for")
         parser.add_argument("-e", "--epochs", default=100, dest="num_epochs", help="input the number of epochs to run")
+        parser.add_argument("-s", "--ssl", action="store_true", dest="ssl", help="input whether or not to add additional ssl task")
         args = parser.parse_args()
         self.modelType = args.modelType
         self.glucMetric = args.glucMetric
@@ -37,11 +39,12 @@ class runModel:
         self.seq_length = 28
         self.num_epochs = int(args.num_epochs)
         self.dropout_p = 0.5
+        self.ssl =  args.ssl
         self.model = self.modelChooser(self.modelType)
 
     def modelChooser(self, modelType):
         if modelType == "conv1d":
-            return Conv1DModel(self.dropout_p)
+            return Conv1DModel(self.ssl, self.dropout_p)
         elif modelType == "lstm":
             return LstmModel(input_size = self.seq_length, hidden_size = 100, num_layers = 8, batch_first = True, dropout = self.dropout_p, dtype = self.dtype)
         elif modelType == "transformer":
@@ -65,7 +68,7 @@ class runModel:
         # returns eda, hr, temp, then hba1c
         train_dataloader = DataLoader(train_dataset, batch_size = 32, shuffle = True)
 
-        criterion = nn.MSELoss()
+        criterion = SslLoss(self.ssl)
         optimizer = optim.Adam(model.parameters(), lr = 1e-3, weight_decay = 1e-5)
         scheduler = StepLR(optimizer, step_size=int(self.num_epochs/5), gamma=0.1)
 
@@ -80,9 +83,13 @@ class runModel:
             for batch_idx, (eda, hr, temp, target) in progress_bar:
                 input = torch.stack((eda, hr, temp)).permute((1,0,2)).to(self.dtype)
 
-                output = model(input).to(self.dtype).squeeze()
+                modelOut = model(input)
+                if self.ssl:
+                    maskOut, output = modelOut[0].to(self.dtype), modelOut[1].to(self.dtype).squeeze()
+                else:
+                    maskOut, output = modelOut[0], modelOut[1].to(self.dtype).squeeze()
 
-                loss = criterion(output, target)
+                loss = criterion(output, target, maskOut, input)
 
                 optimizer.zero_grad()
                 loss.backward()
@@ -90,13 +97,16 @@ class runModel:
 
                 lossLst.append(loss.item())
                 accLst.append(1 - self.mape(output, target))
-
+                
+            print(maskOut, input)
             scheduler.step()
 
-            print(f"epoch {epoch + 1} training loss: {sum(lossLst)/len(lossLst)} learning rate: {scheduler.get_lr()} training accuracy: {sum(accLst)/len(accLst)}")
+            print(f"epoch {epoch + 1} training loss: {sum(lossLst)/len(lossLst)} learning rate: {scheduler.get_last_lr()} training accuracy: {sum(accLst)/len(accLst)}")
 
     def evaluate(self, samples, model):
         model.eval()
+
+        model.decoder = nn.Identity()
         # load in classes
         dataProcessor = DataProcessor(self.mainDir)
         pp5vals = pp5()
@@ -125,7 +135,10 @@ class runModel:
                 for batch_idx, (eda, hr, temp, target) in progress_bar:
                     input = torch.stack((eda, hr, temp)).permute((1,0,2)).to(self.dtype)
                 
-                    output = model(input).to(self.dtype).squeeze()
+                    input = torch.stack((eda, hr, temp)).permute((1,0,2)).to(self.dtype)
+
+                    modelOut = model(input)
+                    output = modelOut[1].to(self.dtype).squeeze()
 
                     loss = criterion(output, target)
 
@@ -135,7 +148,7 @@ class runModel:
                 print(f"epoch {epoch} training loss: {sum(lossLst)/len(lossLst)} training accuracy: {sum(accLst)/len(accLst)}")
 
     def mape(self, pred, target):
-        return (torch.sum(torch.div(torch.abs(target - pred), target)) / pred.size(0)).item()
+        return (torch.sum(torch.div(torch.abs(target - pred), torch.abs(target))) / pred.size(0)).item()
 
     def run(self):
         samples = [str(i).zfill(3) for i in range(1, 17)]
