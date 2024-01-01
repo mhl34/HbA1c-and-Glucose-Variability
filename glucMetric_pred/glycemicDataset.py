@@ -49,4 +49,4 @@ class glycemicDataset(Dataset):
         edaMean = np.array(list(map(np.mean, np.array_split(edaSample, self.seq_length))))
         hrMean = np.array(list(map(np.mean, np.array_split(hrSample, self.seq_length))))
         tempMean = np.array(list(map(np.mean, np.array_split(tempSample, self.seq_length))))
-        return (edaMean, hrMean, tempMean, glucStats[self.metric])
+        return (sample, edaMean, hrMean, tempMean, glucStats[self.metric])

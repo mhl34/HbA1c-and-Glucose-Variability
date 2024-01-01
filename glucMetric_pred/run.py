@@ -19,6 +19,7 @@ from pp5 import pp5
 from Conv1DModel import Conv1DModel
 from LstmModel import LstmModel
 from TransformerModel import TransformerModel
+from DannModel import DannModel
 from torch.optim.lr_scheduler import StepLR
 from SslLoss import SslLoss
 
@@ -29,6 +30,7 @@ class runModel:
         parser.add_argument("-gm", "--glucMetric", default = "mean", dest="glucMetric", help="input the type of glucose metric you want to regress for")
         parser.add_argument("-e", "--epochs", default=100, dest="num_epochs", help="input the number of epochs to run")
         parser.add_argument("-s", "--ssl", action="store_true", dest="ssl", help="input whether or not to add additional ssl task")
+        parser.add_argument("-d", "--dann", action="store_true", dest="dann", help="input whether or not to use DANN for training")
         args = parser.parse_args()
         self.modelType = args.modelType
         self.glucMetric = args.glucMetric
@@ -40,14 +42,19 @@ class runModel:
         self.num_epochs = int(args.num_epochs)
         self.dropout_p = 0.5
         self.ssl =  args.ssl
+        self.dann = args.dann
+        self.dannModel = None
         self.model = self.modelChooser(self.modelType)
 
     def modelChooser(self, modelType):
         if modelType == "conv1d":
+            print(f"model {modelType}")
             return Conv1DModel(self.ssl, self.dropout_p)
         elif modelType == "lstm":
+            print(f"model {modelType}")
             return LstmModel(input_size = self.seq_length, hidden_size = 100, num_layers = 8, batch_first = True, dropout = self.dropout_p, dtype = self.dtype)
         elif modelType == "transformer":
+            print(f"model {modelType}")
             return TransformerModel(num_features = 1024, num_head = 256, seq_length = self.seq_length, dropout_p = self.dropout_p, norm_first = True, dtype = self.dtype)
         return None
 
@@ -80,7 +87,7 @@ class runModel:
             lossLst = []
             accLst = []
 
-            for batch_idx, (eda, hr, temp, target) in progress_bar:
+            for batch_idx, (sample, eda, hr, temp, target) in progress_bar:
                 input = torch.stack((eda, hr, temp)).permute((1,0,2)).to(self.dtype)
 
                 modelOut = model(input)
@@ -131,7 +138,7 @@ class runModel:
                 lossLst = []
                 accLst = []
 
-                for batch_idx, (eda, hr, temp, target) in progress_bar:
+                for batch_idx, (sample, eda, hr, temp, target) in progress_bar:
                     input = torch.stack((eda, hr, temp)).permute((1,0,2)).to(self.dtype)
                 
                     input = torch.stack((eda, hr, temp)).permute((1,0,2)).to(self.dtype)
@@ -153,6 +160,8 @@ class runModel:
         samples = [str(i).zfill(3) for i in range(1, 17)]
         trainSamples = samples[:-5]
         valSamples = samples[-5:]
+        if self.dann:
+            self.dannModel = DannModel(samples, self.modelType)
         self.train(trainSamples, self.model)
         self.evaluate(valSamples, self.model)
 
