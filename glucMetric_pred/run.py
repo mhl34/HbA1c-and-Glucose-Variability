@@ -21,7 +21,7 @@ from LstmModel import LstmModel
 from TransformerModel import TransformerModel
 from DannModel import DannModel
 from torch.optim.lr_scheduler import StepLR
-from SslLoss import SslLoss
+from Loss import Loss
 
 class runModel:
     def __init__(self, mainDir):
@@ -75,7 +75,7 @@ class runModel:
         # returns eda, hr, temp, then hba1c
         train_dataloader = DataLoader(train_dataset, batch_size = 32, shuffle = True)
 
-        criterion = SslLoss(self.ssl)
+        criterion = Loss()
         optimizer = optim.Adam(model.parameters(), lr = 1e-3, weight_decay = 1e-5)
         scheduler = StepLR(optimizer, step_size=int(self.num_epochs/5), gamma=0.1)
 
@@ -96,7 +96,11 @@ class runModel:
                 else:
                     maskOut, output = modelOut[0], modelOut[1].to(self.dtype).squeeze()
 
-                loss = criterion(output, target, maskOut, input)
+                loss = criterion(output, target)
+                if self.ssl:
+                    loss = criterion(maskOut, target, label = "ssl")
+                if self.dann:
+                    loss = criterion(maskOut, target, label = "dann")
 
                 optimizer.zero_grad()
                 loss.backward()
