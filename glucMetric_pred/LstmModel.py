@@ -18,6 +18,7 @@ class LstmModel(nn.Module):
         self.fc2 = nn.Linear(64, 1, dtype = self.dtype)
         self.ssl = True
         self.mask_len = 7
+        self.dropout_layer = nn.Dropout(dropout)
         self.decoder = nn.Identity()
 
     def forward(self, x):
@@ -25,8 +26,8 @@ class LstmModel(nn.Module):
         # out shape (32, 3, 100)
         masked_out = None
         out = out.reshape(out.size(0), -1).to(self.dtype)
-        out = self.fc1(self.dropout(out))
-        out = self.fc2(self.dropout(out))
+        out = self.fc1(self.dropout_layer(out))
+        out = self.fc2(self.dropout_layer(out))
         return masked_out, out
     
     def getMasked(self, data, mask_len = 5):

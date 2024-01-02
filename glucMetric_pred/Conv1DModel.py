@@ -44,8 +44,8 @@ class Conv1DModel(nn.Module):
             masked_out = F.relu(self.conv3(masked_out))
             masked_out = self.decoder(out)
         out = out.view(out.size(0), -1)
-        out = self.fc1(self.dropout(out))
-        out = self.fc2(self.dropout(out))
+        out = F.relu(self.fc1(self.dropout(out)))
+        out = F.relu(self.fc2(self.dropout(out)))
         return masked_out, out
     
     def getMasked(self, data, mask_len = 5):

@@ -30,7 +30,6 @@ class runModel:
         parser.add_argument("-gm", "--glucMetric", default = "mean", dest="glucMetric", help="input the type of glucose metric you want to regress for")
         parser.add_argument("-e", "--epochs", default=100, dest="num_epochs", help="input the number of epochs to run")
         parser.add_argument("-s", "--ssl", action="store_true", dest="ssl", help="input whether or not to add additional ssl task")
-        parser.add_argument("-d", "--dann", action="store_true", dest="dann", help="input whether or not to use DANN for training")
         args = parser.parse_args()
         self.modelType = args.modelType
         self.glucMetric = args.glucMetric
@@ -42,11 +41,9 @@ class runModel:
         self.num_epochs = int(args.num_epochs)
         self.dropout_p = 0.5
         self.ssl =  args.ssl
-        self.dann = args.dann
-        self.dannModel = None
-        self.model = self.modelChooser(self.modelType)
+        self.domain_lambda = 0.01
 
-    def modelChooser(self, modelType):
+    def modelChooser(self, modelType, samples):
         if modelType == "conv1d":
             print(f"model {modelType}")
             return Conv1DModel(self.ssl, self.dropout_p)
@@ -56,6 +53,9 @@ class runModel:
         elif modelType == "transformer":
             print(f"model {modelType}")
             return TransformerModel(num_features = 1024, num_head = 256, seq_length = self.seq_length, dropout_p = self.dropout_p, norm_first = True, dtype = self.dtype)
+        elif modelType == "dann":
+            print(f"model {modelType}")
+            return DannModel(self.modelType, samples)
         return None
 
     def train(self, samples, model):
@@ -76,9 +76,9 @@ class runModel:
         train_dataloader = DataLoader(train_dataset, batch_size = 32, shuffle = True)
 
         criterion = Loss()
-        optimizer = optim.Adam(model.parameters(), lr = 1e-3, weight_decay = 1e-5)
+        optimizer = optim.Adam(model.parameters(), lr = 1e-3, weight_decay = 1e-8)
+        # optimizer = optim.SGD(model.parameters(), lr = 1e-6, momentum = 0.5, weight_decay = 1e-8)
         scheduler = StepLR(optimizer, step_size=int(self.num_epochs/5), gamma=0.1)
-
 
         for epoch in range(self.num_epochs):
 
@@ -87,23 +87,37 @@ class runModel:
             lossLst = []
             accLst = []
 
-            for batch_idx, (sample, eda, hr, temp, target) in progress_bar:
-                input = torch.stack((eda, hr, temp)).permute((1,0,2)).to(self.dtype)
+            len_dataloader = len(train_dataloader)
 
-                modelOut = model(input)
+            for batch_idx, (sample, eda, hr, temp, target) in progress_bar:
+                # stack the inputs and feed as 3 channel input
+                input = torch.stack((eda, hr, temp)).permute((1,0,2)).to(self.dtype)
+                batch_len = len(target)
+
+                # zero index the dann target
+                dannTarget = torch.tensor([int(i) - 1 for i in sample]).to(torch.long)
+
+                p = float(batch_idx + epoch * len_dataloader) / (self.num_epochs * len_dataloader)
+                alpha = 2. / (1. + np.exp(-10 * p)) - 1
+
                 if self.ssl:
+                    modelOut = model(input)
                     maskOut, output = modelOut[0].to(self.dtype), modelOut[1].to(self.dtype).squeeze()
+                elif self.modelType == "dann":
+                    modelOut = model(input, alpha)
+                    output, dann_output = modelOut[0].to(self.dtype), modelOut[1].to(self.dtype).squeeze()
                 else:
+                    modelOut = model(input)
                     maskOut, output = modelOut[0], modelOut[1].to(self.dtype).squeeze()
 
                 loss = criterion(output, target)
                 if self.ssl:
-                    loss = criterion(maskOut, target, label = "ssl")
-                if self.dann:
-                    loss = criterion(maskOut, target, label = "dann")
+                    loss = criterion(maskOut, input, label = "ssl")
+                if self.modelType == "dann":
+                    loss = criterion(dann_output, dannTarget, label = "dann")
 
                 optimizer.zero_grad()
-                loss.backward()
+                loss.backward(retain_graph = True)
                 optimizer.step()
 
                 lossLst.append(loss.item())
@@ -132,7 +146,7 @@ class runModel:
         # returns eda, hr, temp, then hba1c
         val_dataloader = DataLoader(val_dataset, batch_size = 32, shuffle = True)
 
-        criterion = nn.MSELoss()
+        criterion = Loss()
 
         with torch.no_grad():
             for epoch in range(self.num_epochs):
@@ -144,13 +158,23 @@ class runModel:
 
                 for batch_idx, (sample, eda, hr, temp, target) in progress_bar:
                     input = torch.stack((eda, hr, temp)).permute((1,0,2)).to(self.dtype)
+
+                    # zero index the dann target
+                    dannTarget = torch.tensor([int(i) - 1 for i in sample]).to(torch.long)
                 
-                    input = torch.stack((eda, hr, temp)).permute((1,0,2)).to(self.dtype)
-
                     modelOut = model(input)
-                    output = modelOut[1].to(self.dtype).squeeze()
-
+                    if self.ssl:
+                        maskOut, output = modelOut[0].to(self.dtype), modelOut[1].to(self.dtype).squeeze()
+                    elif self.modelType == "dann":
+                        output, dann_output = modelOut[0].to(self.dtype), modelOut[1].to(self.dtype).squeeze()
+                    else:
+                        maskOut, output = modelOut[0], modelOut[1].to(self.dtype).squeeze()
+                    
                     loss = criterion(output, target)
+                    if self.ssl:
+                        loss = criterion(maskOut, input, label = "ssl")
+                    if self.modelType == "dann":
+                        loss = criterion(dann_output, dannTarget, label = "dann")
 
                     lossLst.append(loss.item())
                     accLst.append(1 - self.mape(output, target))
@@ -158,16 +182,15 @@ class runModel:
                 print(f"epoch {epoch} training loss: {sum(lossLst)/len(lossLst)} training accuracy: {sum(accLst)/len(accLst)}")
 
     def mape(self, pred, target):
-        return (torch.sum(torch.div(torch.abs(target - pred), torch.abs(target))) / pred.size(0)).item()
+        return (torch.mean(torch.div(torch.abs(target.view(len(target), 1) - pred), torch.abs(target.view(len(target), 1))))).item()
 
     def run(self):
         samples = [str(i).zfill(3) for i in range(1, 17)]
         trainSamples = samples[:-5]
         valSamples = samples[-5:]
-        if self.dann:
-            self.dannModel = DannModel(samples, self.modelType)
-        self.train(trainSamples, self.model)
-        self.evaluate(valSamples, self.model)
+        model = self.modelChooser(self.modelType, samples)
+        self.train(trainSamples, model)
+        self.evaluate(valSamples, model)
 
 if __name__ == "__main__":
     mainDir = "/home/mhl34/big-ideas-lab-glycemic-variability-and-wearable-device-data-1.1.0/"
