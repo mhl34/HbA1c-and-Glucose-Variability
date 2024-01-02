@@ -20,6 +20,7 @@ from Conv1DModel import Conv1DModel
 from LstmModel import LstmModel
 from TransformerModel import TransformerModel
 from DannModel import DannModel
+from SslModel import SslModel
 from torch.optim.lr_scheduler import StepLR
 from Loss import Loss
 
@@ -29,7 +30,6 @@ class runModel:
         parser.add_argument("-m", "--modelType", dest="modelType", help="input the type of model you want to use")
         parser.add_argument("-gm", "--glucMetric", default = "mean", dest="glucMetric", help="input the type of glucose metric you want to regress for")
         parser.add_argument("-e", "--epochs", default=100, dest="num_epochs", help="input the number of epochs to run")
-        parser.add_argument("-s", "--ssl", action="store_true", dest="ssl", help="input whether or not to add additional ssl task")
         args = parser.parse_args()
         self.modelType = args.modelType
         self.glucMetric = args.glucMetric
@@ -40,13 +40,12 @@ class runModel:
         self.seq_length = 28
         self.num_epochs = int(args.num_epochs)
         self.dropout_p = 0.5
-        self.ssl =  args.ssl
         self.domain_lambda = 0.01
 
     def modelChooser(self, modelType, samples):
         if modelType == "conv1d":
             print(f"model {modelType}")
-            return Conv1DModel(self.ssl, self.dropout_p)
+            return Conv1DModel(self.dropout_p)
         elif modelType == "lstm":
             print(f"model {modelType}")
             return LstmModel(input_size = self.seq_length, hidden_size = 100, num_layers = 8, batch_first = True, dropout = self.dropout_p, dtype = self.dtype)
@@ -55,14 +54,15 @@ class runModel:
             return TransformerModel(num_features = 1024, num_head = 256, seq_length = self.seq_length, dropout_p = self.dropout_p, norm_first = True, dtype = self.dtype)
         elif modelType == "dann":
             print(f"model {modelType}")
-            return DannModel(self.modelType, samples)
+            return DannModel(self.modelType, samples, dropoout = self.dropout_p)
+        elif modelType == "ssl":
+            return SslModel(mask_size = 7, dropout = self.dropout_p)
         return None
 
     def train(self, samples, model):
         model.train()
         # load in classes
         dataProcessor = DataProcessor(self.mainDir)
-        pp5vals = pp5()
 
         glucoseData = dataProcessor.loadData(samples, "dexcom")
         edaData = dataProcessor.loadData(samples, "eda")
@@ -92,7 +92,6 @@ class runModel:
             for batch_idx, (sample, eda, hr, temp, target) in progress_bar:
                 # stack the inputs and feed as 3 channel input
                 input = torch.stack((eda, hr, temp)).permute((1,0,2)).to(self.dtype)
-                batch_len = len(target)
 
                 # zero index the dann target
                 dannTarget = torch.tensor([int(i) - 1 for i in sample]).to(torch.long)
@@ -100,18 +99,17 @@ class runModel:
                 p = float(batch_idx + epoch * len_dataloader) / (self.num_epochs * len_dataloader)
                 alpha = 2. / (1. + np.exp(-10 * p)) - 1
 
-                if self.ssl:
-                    modelOut = model(input)
-                    maskOut, output = modelOut[0].to(self.dtype), modelOut[1].to(self.dtype).squeeze()
+                if self.modelType == "conv1d" or self.modelType == "transformer" or self.modelType == "lstm":
+                    output = model(input).to(self.dtype).squeeze()
                 elif self.modelType == "dann":
                     modelOut = model(input, alpha)
                     output, dann_output = modelOut[0].to(self.dtype), modelOut[1].to(self.dtype).squeeze()
                 else:
                     modelOut = model(input)
-                    maskOut, output = modelOut[0], modelOut[1].to(self.dtype).squeeze()
+                    maskOut, output = modelOut[0].to(self.dtype), modelOut[1].to(self.dtype).squeeze()
 
                 loss = criterion(output, target)
-                if self.ssl:
+                if self.modelType == "ssl":
                     loss = criterion(maskOut, input, label = "ssl")
                 if self.modelType == "dann":
                     loss = criterion(dann_output, dannTarget, label = "dann")
@@ -167,21 +165,18 @@ class runModel:
                     p = float(batch_idx + epoch * len_dataloader) / (self.num_epochs * len_dataloader)
                     alpha = 2. / (1. + np.exp(-10 * p)) - 1
                     
-                    if self.ssl:
-                        modelOut = model(input)
-                        maskOut, output = modelOut[0].to(self.dtype), modelOut[1].to(self.dtype).squeeze()
+                    # identify what type of outputs come from the model
+                    if self.modelType == "conv1d" or self.modelType == "transformer" or self.modelType == "lstm":
+                        output = model(input).to(self.dtype).squeeze()
                     elif self.modelType == "dann":
                         modelOut = model(input, alpha)
-                        output, dann_output = modelOut[0].to(self.dtype), modelOut[1].to(self.dtype).squeeze()
+                        output, _ = modelOut[0].to(self.dtype), modelOut[1].to(self.dtype).squeeze()
                     else:
                         modelOut = model(input)
-                        maskOut, output = modelOut[0], modelOut[1].to(self.dtype).squeeze()
+                        _, output = modelOut[0].to(self.dtype), modelOut[1].to(self.dtype).squeeze()
                     
+                    # loss is only calculated from the main task
                     loss = criterion(output, target)
-                    if self.ssl:
-                        loss = criterion(maskOut, input, label = "ssl")
-                    if self.modelType == "dann":
-                        loss = criterion(dann_output, dannTarget, label = "dann")
 
                     lossLst.append(loss.item())
                     accLst.append(1 - self.mape(output, target))

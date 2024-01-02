@@ -24,11 +24,10 @@ class LstmModel(nn.Module):
     def forward(self, x):
         out, _ = self.lstm(x)
         # out shape (32, 3, 100)
-        masked_out = None
         out = out.reshape(out.size(0), -1).to(self.dtype)
         out = self.fc1(self.dropout_layer(out))
         out = self.fc2(self.dropout_layer(out))
-        return masked_out, out
+        return out
     
     def getMasked(self, data, mask_len = 5):
         mask = torch.ones_like(data)
