@@ -156,6 +156,8 @@ class runModel:
                 lossLst = []
                 accLst = []
 
+                len_dataloader = len(val_dataloader)
+
                 for batch_idx, (sample, eda, hr, temp, target) in progress_bar:
                     input = torch.stack((eda, hr, temp)).permute((1,0,2)).to(self.dtype)
 
