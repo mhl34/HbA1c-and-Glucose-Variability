@@ -56,7 +56,7 @@ class runModel:
             print(f"model {modelType}")
             return DannModel(self.modelType, samples, dropoout = self.dropout_p)
         elif modelType == "ssl":
-            return SslModel(mask_size = 7, dropout = self.dropout_p)
+            return SslModel(mask_len = 7, dropout_p = self.dropout_p)
         return None
 
     def train(self, samples, model):
