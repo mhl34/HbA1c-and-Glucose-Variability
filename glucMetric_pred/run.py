@@ -97,6 +97,7 @@ class runModel:
                 # zero index the dann target
                 dannTarget = torch.tensor([int(i) - 1 for i in sample]).to(torch.long)
 
+                # p for dann training
                 p = float(batch_idx + epoch * len_dataloader) / (self.num_epochs * len_dataloader)
                 alpha = 2. / (1. + np.exp(-10 * p)) - 1
 
@@ -153,6 +154,8 @@ class runModel:
 
                 progress_bar = tqdm(enumerate(val_dataloader), total=len(val_dataloader), desc=f'Epoch {epoch + 1}/{self.num_epochs}', unit='batch')
                 
+                len_dataloader = len(val_dataloader)
+
                 lossLst = []
                 accLst = []
 
@@ -161,13 +164,20 @@ class runModel:
 
                     # zero index the dann target
                     dannTarget = torch.tensor([int(i) - 1 for i in sample]).to(torch.long)
-                
-                    modelOut = model(input)
+                    batch_len = len(val_dataloader)
+
+                    # p for dann training
+                    p = float(batch_idx + epoch * len_dataloader) / (self.num_epochs * len_dataloader)
+                    alpha = 2. / (1. + np.exp(-10 * p)) - 1
+
                     if self.ssl:
+                        modelOut = model(input)
                         maskOut, output = modelOut[0].to(self.dtype), modelOut[1].to(self.dtype).squeeze()
                     elif self.modelType == "dann":
+                        modelOut = model(input, alpha)
                         output, dann_output = modelOut[0].to(self.dtype), modelOut[1].to(self.dtype).squeeze()
                     else:
+                        modelOut = model(input)
                         maskOut, output = modelOut[0], modelOut[1].to(self.dtype).squeeze()
                     
                     loss = criterion(output, target)

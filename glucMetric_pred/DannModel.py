@@ -7,10 +7,11 @@ from GradientReversalLayer import GradientReversalLayer
 # output: guess on domain (Person as Domain)
 # params: modelType
 class DannModel(nn.Module):
-    def __init__(self, modelType, samples):
+    def __init__(self, modelType, samples, dropout = 0.5):
         super(DannModel, self).__init__()
         self.modelType = modelType
         self.samples = samples
+        self.dropout_layer = nn.Dropout(p = dropout)
         self.featureExtractor = nn.Sequential(
             nn.Conv1d(in_channels = 3, out_channels = 8, kernel_size = 5, stride = 2),
             nn.ReLU(),
@@ -20,16 +21,20 @@ class DannModel(nn.Module):
             nn.ReLU(),
         )
         self.classifier = nn.Sequential(
+            self.dropout_layer,
             nn.Linear(64 * 6, 64),
             nn.ReLU(),
             nn.Linear(64, 1)
         )
         self.inputDim = self.inputDimCalc(self.modelType)
         self.adversary = nn.Sequential(
+            self.dropout_layer,
             nn.Linear(self.inputDim, 64),
             nn.ReLU(),
+            self.dropout_layer,
             nn.Linear(64, 32),
             nn.ReLU(),
+            self.dropout_layer,
             nn.Linear(32, 16),
             nn.ReLU(),
             nn.Linear(16, len(self.samples))
