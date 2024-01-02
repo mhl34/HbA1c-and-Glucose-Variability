@@ -161,13 +161,18 @@ class runModel:
 
                     # zero index the dann target
                     dannTarget = torch.tensor([int(i) - 1 for i in sample]).to(torch.long)
-                
-                    modelOut = model(input)
+
+                    p = float(batch_idx + epoch * len_dataloader) / (self.num_epochs * len_dataloader)
+                    alpha = 2. / (1. + np.exp(-10 * p)) - 1
+                    
                     if self.ssl:
+                        modelOut = model(input)
                         maskOut, output = modelOut[0].to(self.dtype), modelOut[1].to(self.dtype).squeeze()
                     elif self.modelType == "dann":
+                        modelOut = model(input, alpha)
                         output, dann_output = modelOut[0].to(self.dtype), modelOut[1].to(self.dtype).squeeze()
                     else:
+                        modelOut = model(input)
                         maskOut, output = modelOut[0], modelOut[1].to(self.dtype).squeeze()
                     
                     loss = criterion(output, target)
