@@ -49,10 +49,7 @@ class DannModel(nn.Module):
         if self.training:
             features = GradientReversalLayer.apply(features, alpha)
             dann_output = self.adversary(features)
-            return task_output, dann_output
-        self.adversary = nn.Identity()
-        dann_output = self.adversary(features)
-        return task_output, dann_output
+        return dann_output, task_output
 
     def inputDimCalc(self, modelType):
         if modelType == "conv1d" or modelType == "dann":

@@ -54,12 +54,16 @@ class runModel:
             return TransformerModel(num_features = 1024, num_head = 256, seq_length = self.seq_length, dropout_p = self.dropout_p, norm_first = True, dtype = self.dtype)
         elif modelType == "dann":
             print(f"model {modelType}")
-            return DannModel(self.modelType, samples, dropoout = self.dropout_p)
+            return DannModel(self.modelType, samples, dropout = self.dropout_p)
         elif modelType == "ssl":
-            return SslModel(mask_len = 7, dropout_p = self.dropout_p)
+            print(f"model {modelType}")
+            return SslModel(mask_len = 7, dropout = self.dropout_p)
         return None
 
     def train(self, samples, model):
+        print("============================")
+        print("Training...")
+        print("============================")
         model.train()
         # load in classes
         dataProcessor = DataProcessor(self.mainDir)
@@ -103,14 +107,14 @@ class runModel:
                     output = model(input).to(self.dtype).squeeze()
                 elif self.modelType == "dann":
                     modelOut = model(input, alpha)
-                    output, dann_output = modelOut[0].to(self.dtype), modelOut[1].to(self.dtype).squeeze()
+                    dann_output, output = modelOut[0].to(self.dtype), modelOut[1].to(self.dtype).squeeze()
                 else:
                     modelOut = model(input)
-                    maskOut, output = modelOut[0].to(self.dtype), modelOut[1].to(self.dtype).squeeze()
+                    mask_output, output = modelOut[0].to(self.dtype), modelOut[1].to(self.dtype).squeeze()
 
                 loss = criterion(output, target)
                 if self.modelType == "ssl":
-                    loss = criterion(maskOut, input, label = "ssl")
+                    loss = criterion(mask_output, input, label = "ssl")
                 if self.modelType == "dann":
                     loss = criterion(dann_output, dannTarget, label = "dann")
 
@@ -126,9 +130,16 @@ class runModel:
             print(f"epoch {epoch + 1} training loss: {sum(lossLst)/len(lossLst)} learning rate: {scheduler.get_last_lr()} training accuracy: {sum(accLst)/len(accLst)}")
 
     def evaluate(self, samples, model):
+        print("============================")
+        print("Evaluating...")
+        print("============================")
         model.eval()
 
-        model.decoder = nn.Identity()
+        # drop auxiliary networks
+        if self.modelType == "ssl":
+            model.decoder = nn.Identity()
+        if self.modelType == "dann":
+            model.adversary = nn.Identity()
         # load in classes
         dataProcessor = DataProcessor(self.mainDir)
         pp5vals = pp5()
@@ -170,10 +181,10 @@ class runModel:
                         output = model(input).to(self.dtype).squeeze()
                     elif self.modelType == "dann":
                         modelOut = model(input, alpha)
-                        output, _ = modelOut[0].to(self.dtype), modelOut[1].to(self.dtype).squeeze()
+                        _, output = modelOut[0], modelOut[1].to(self.dtype).squeeze()
                     else:
                         modelOut = model(input)
-                        _, output = modelOut[0].to(self.dtype), modelOut[1].to(self.dtype).squeeze()
+                        _, output = modelOut[0], modelOut[1].to(self.dtype).squeeze()
                     
                     # loss is only calculated from the main task
                     loss = criterion(output, target)
