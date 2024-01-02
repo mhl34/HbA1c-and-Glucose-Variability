@@ -19,8 +19,9 @@ from pp5 import pp5
 from Conv1DModel import Conv1DModel
 from LstmModel import LstmModel
 from TransformerModel import TransformerModel
+from DannModel import DannModel
 from torch.optim.lr_scheduler import StepLR
-from SslLoss import SslLoss
+from Loss import Loss
 
 class runModel:
     def __init__(self, mainDir):
@@ -40,15 +41,21 @@ class runModel:
         self.num_epochs = int(args.num_epochs)
         self.dropout_p = 0.5
         self.ssl =  args.ssl
-        self.model = self.modelChooser(self.modelType)
+        self.domain_lambda = 0.01
 
-    def modelChooser(self, modelType):
+    def modelChooser(self, modelType, samples):
         if modelType == "conv1d":
+            print(f"model {modelType}")
             return Conv1DModel(self.ssl, self.dropout_p)
         elif modelType == "lstm":
+            print(f"model {modelType}")
             return LstmModel(input_size = self.seq_length, hidden_size = 100, num_layers = 8, batch_first = True, dropout = self.dropout_p, dtype = self.dtype)
         elif modelType == "transformer":
+            print(f"model {modelType}")
             return TransformerModel(num_features = 1024, num_head = 256, seq_length = self.seq_length, dropout_p = self.dropout_p, norm_first = True, dtype = self.dtype)
+        elif modelType == "dann":
+            print(f"model {modelType}")
+            return DannModel(self.modelType, samples)
         return None
 
     def train(self, samples, model):
@@ -68,10 +75,10 @@ class runModel:
         # returns eda, hr, temp, then hba1c
         train_dataloader = DataLoader(train_dataset, batch_size = 32, shuffle = True)
 
-        criterion = SslLoss(self.ssl)
-        optimizer = optim.Adam(model.parameters(), lr = 1e-3, weight_decay = 1e-5)
+        criterion = Loss()
+        optimizer = optim.Adam(model.parameters(), lr = 1e-3, weight_decay = 1e-8)
+        # optimizer = optim.SGD(model.parameters(), lr = 1e-6, momentum = 0.5, weight_decay = 1e-8)
         scheduler = StepLR(optimizer, step_size=int(self.num_epochs/5), gamma=0.1)
-
 
         for epoch in range(self.num_epochs):
 
@@ -80,25 +87,42 @@ class runModel:
             lossLst = []
             accLst = []
 
-            for batch_idx, (eda, hr, temp, target) in progress_bar:
-                input = torch.stack((eda, hr, temp)).permute((1,0,2)).to(self.dtype)
+            len_dataloader = len(train_dataloader)
 
-                modelOut = model(input)
+            for batch_idx, (sample, eda, hr, temp, target) in progress_bar:
+                # stack the inputs and feed as 3 channel input
+                input = torch.stack((eda, hr, temp)).permute((1,0,2)).to(self.dtype)
+                batch_len = len(target)
+
+                # zero index the dann target
+                dannTarget = torch.tensor([int(i) - 1 for i in sample]).to(torch.long)
+
+                p = float(batch_idx + epoch * len_dataloader) / (self.num_epochs * len_dataloader)
+                alpha = 2. / (1. + np.exp(-10 * p)) - 1
+
                 if self.ssl:
+                    modelOut = model(input)
                     maskOut, output = modelOut[0].to(self.dtype), modelOut[1].to(self.dtype).squeeze()
+                elif self.modelType == "dann":
+                    modelOut = model(input, alpha)
+                    output, dann_output = modelOut[0].to(self.dtype), modelOut[1].to(self.dtype).squeeze()
                 else:
+                    modelOut = model(input)
                     maskOut, output = modelOut[0], modelOut[1].to(self.dtype).squeeze()
 
-                loss = criterion(output, target, maskOut, input)
+                loss = criterion(output, target)
+                if self.ssl:
+                    loss = criterion(maskOut, input, label = "ssl")
+                if self.modelType == "dann":
+                    loss = criterion(dann_output, dannTarget, label = "dann")
 
                 optimizer.zero_grad()
-                loss.backward()
+                loss.backward(retain_graph = True)
                 optimizer.step()
 
                 lossLst.append(loss.item())
                 accLst.append(1 - self.mape(output, target))
-                
-            print(maskOut, input)
+
             scheduler.step()
 
             print(f"epoch {epoch + 1} training loss: {sum(lossLst)/len(lossLst)} learning rate: {scheduler.get_last_lr()} training accuracy: {sum(accLst)/len(accLst)}")
@@ -122,7 +146,7 @@ class runModel:
         # returns eda, hr, temp, then hba1c
         val_dataloader = DataLoader(val_dataset, batch_size = 32, shuffle = True)
 
-        criterion = nn.MSELoss()
+        criterion = Loss()
 
         with torch.no_grad():
             for epoch in range(self.num_epochs):
@@ -132,15 +156,25 @@ class runModel:
                 lossLst = []
                 accLst = []
 
-                for batch_idx, (eda, hr, temp, target) in progress_bar:
+                for batch_idx, (sample, eda, hr, temp, target) in progress_bar:
                     input = torch.stack((eda, hr, temp)).permute((1,0,2)).to(self.dtype)
+
+                    # zero index the dann target
+                    dannTarget = torch.tensor([int(i) - 1 for i in sample]).to(torch.long)
                 
-                    input = torch.stack((eda, hr, temp)).permute((1,0,2)).to(self.dtype)
-
                     modelOut = model(input)
-                    output = modelOut[1].to(self.dtype).squeeze()
-
+                    if self.ssl:
+                        maskOut, output = modelOut[0].to(self.dtype), modelOut[1].to(self.dtype).squeeze()
+                    elif self.modelType == "dann":
+                        output, dann_output = modelOut[0].to(self.dtype), modelOut[1].to(self.dtype).squeeze()
+                    else:
+                        maskOut, output = modelOut[0], modelOut[1].to(self.dtype).squeeze()
+                    
                     loss = criterion(output, target)
+                    if self.ssl:
+                        loss = criterion(maskOut, input, label = "ssl")
+                    if self.modelType == "dann":
+                        loss = criterion(dann_output, dannTarget, label = "dann")
 
                     lossLst.append(loss.item())
                     accLst.append(1 - self.mape(output, target))
@@ -148,14 +182,15 @@ class runModel:
                 print(f"epoch {epoch} training loss: {sum(lossLst)/len(lossLst)} training accuracy: {sum(accLst)/len(accLst)}")
 
     def mape(self, pred, target):
-        return (torch.sum(torch.div(torch.abs(target - pred), torch.abs(target))) / pred.size(0)).item()
+        return (torch.mean(torch.div(torch.abs(target.view(len(target), 1) - pred), torch.abs(target.view(len(target), 1))))).item()
 
     def run(self):
         samples = [str(i).zfill(3) for i in range(1, 17)]
         trainSamples = samples[:-5]
         valSamples = samples[-5:]
-        self.train(trainSamples, self.model)
-        self.evaluate(valSamples, self.model)
+        model = self.modelChooser(self.modelType, samples)
+        self.train(trainSamples, model)
+        self.evaluate(valSamples, model)
 
 if __name__ == "__main__":
     mainDir = "/home/mhl34/big-ideas-lab-glycemic-variability-and-wearable-device-data-1.1.0/"
