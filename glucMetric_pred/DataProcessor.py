@@ -40,6 +40,13 @@ class DataProcessor:
                 lst = pd.to_numeric(df[' hr']).to_numpy()
                 # lst = lst[~np.isnan(lst)]
                 data[sample] = lst
+        elif fileType == "acc":
+            for sample in samples:
+                df = pd.read_csv(self.mainDir + sample + "/" + self.accFormat.format(sample))
+                lst_x = pd.to_numeric(df[' acc_x']).to_numpy()
+                lst_y = pd.to_numeric(df[' acc_y']).to_numpy()
+                lst_z = pd.to_numeric(df[' acc_z']).to_numpy()
+                data[sample] = np.sqrt([np.square(lst_x) + np.square(lst_y) + np.square(lst_z)])
         else:
             for sample in samples:
                 data[sample] = np.array([])

@@ -30,6 +30,7 @@ class runModel:
         parser.add_argument("-m", "--modelType", dest="modelType", help="input the type of model you want to use")
         parser.add_argument("-gm", "--glucMetric", default = "mean", dest="glucMetric", help="input the type of glucose metric you want to regress for")
         parser.add_argument("-e", "--epochs", default=100, dest="num_epochs", help="input the number of epochs to run")
+        parser.add_argument("-n", action='store_true', dest="normalize", help="input whether or not to normalize the input sequence")
         args = parser.parse_args()
         self.modelType = args.modelType
         self.glucMetric = args.glucMetric
@@ -39,8 +40,10 @@ class runModel:
         self.max_norm = 1
         self.seq_length = 28
         self.num_epochs = int(args.num_epochs)
+        self.normalize = args.normalize
         self.dropout_p = 0.5
         self.domain_lambda = 0.01
+        self.batch_size = 64
 
     def modelChooser(self, modelType, samples):
         if modelType == "conv1d":
@@ -72,12 +75,13 @@ class runModel:
         edaData = dataProcessor.loadData(samples, "eda")
         tempData = dataProcessor.loadData(samples, "temp")
         hrData = dataProcessor.loadData(samples, "hr")
+        # accData = dataProcessor.loadData(samples, "acc")
 
         hba1c = dataProcessor.hba1c(samples)
 
-        train_dataset = glycemicDataset(samples, glucoseData, edaData, hrData, tempData, hba1c, metric = self.glucMetric, dtype = self.dtype, seq_length = self.seq_length)
+        train_dataset = glycemicDataset(samples, glucoseData, edaData, hrData, tempData, hba1c, metric = self.glucMetric, dtype = self.dtype, seq_length = self.seq_length, normalize = self.normalize)
         # returns eda, hr, temp, then hba1c
-        train_dataloader = DataLoader(train_dataset, batch_size = 32, shuffle = True)
+        train_dataloader = DataLoader(train_dataset, batch_size = self.batch_size, shuffle = True)
 
         criterion = Loss()
         optimizer = optim.Adam(model.parameters(), lr = 1e-3, weight_decay = 1e-8)
@@ -90,12 +94,15 @@ class runModel:
             
             lossLst = []
             accLst = []
+            persAccList = []
 
             len_dataloader = len(train_dataloader)
 
-            for batch_idx, (sample, eda, hr, temp, target) in progress_bar:
+            for batch_idx, (sample, eda, hr, temp, glucStats) in progress_bar:
                 # stack the inputs and feed as 3 channel input
                 input = torch.stack((eda, hr, temp)).permute((1,0,2)).to(self.dtype)
+
+                target = glucStats[self.glucMetric]
 
                 # zero index the dann target
                 dannTarget = torch.tensor([int(i) - 1 for i in sample]).to(torch.long)
@@ -124,10 +131,15 @@ class runModel:
 
                 lossLst.append(loss.item())
                 accLst.append(1 - self.mape(output, target))
-
+                persAccList.append(self.persAcc(output, glucStats))
             scheduler.step()
 
             print(f"epoch {epoch + 1} training loss: {sum(lossLst)/len(lossLst)} learning rate: {scheduler.get_last_lr()} training accuracy: {sum(accLst)/len(accLst)}")
+
+            print(f"pers category accuracy: {sum(persAccList)/len(persAccList)}")
+
+            # for outVal, targetVal in zip(output[:5], target[:5]):
+            #         print(f"output: {outVal.item()}, target: {targetVal.item()}, difference: {outVal.item() - targetVal.item()}")
 
     def evaluate(self, samples, model):
         print("============================")
@@ -148,12 +160,13 @@ class runModel:
         edaData = dataProcessor.loadData(samples, "eda")
         tempData = dataProcessor.loadData(samples, "temp")
         hrData = dataProcessor.loadData(samples, "hr")
+        # accData = dataProcessor.loadData(samples, "acc")
 
         hba1c = dataProcessor.hba1c(samples)
 
-        val_dataset = glycemicDataset(samples, glucoseData, edaData, hrData, tempData, hba1c, metric = self.glucMetric, dtype = self.dtype, seq_length = self.seq_length)
+        val_dataset = glycemicDataset(samples, glucoseData, edaData, hrData, tempData, hba1c, metric = self.glucMetric, dtype = self.dtype, seq_length = self.seq_length, normalize = self.normalize)
         # returns eda, hr, temp, then hba1c
-        val_dataloader = DataLoader(val_dataset, batch_size = 32, shuffle = True)
+        val_dataloader = DataLoader(val_dataset, batch_size = self.batch_size, shuffle = True)
 
         criterion = Loss()
 
@@ -167,12 +180,12 @@ class runModel:
 
                 len_dataloader = len(val_dataloader)
 
-                for batch_idx, (sample, eda, hr, temp, target) in progress_bar:
+                for batch_idx, (_, eda, hr, temp, glucStats) in progress_bar:
                     input = torch.stack((eda, hr, temp)).permute((1,0,2)).to(self.dtype)
 
-                    # zero index the dann target
-                    dannTarget = torch.tensor([int(i) - 1 for i in sample]).to(torch.long)
+                    target = glucStats[self.glucMetric]
 
+                    # alpha value for dann model
                     p = float(batch_idx + epoch * len_dataloader) / (self.num_epochs * len_dataloader)
                     alpha = 2. / (1. + np.exp(-10 * p)) - 1
                     
@@ -194,8 +207,15 @@ class runModel:
 
                 print(f"epoch {epoch} training loss: {sum(lossLst)/len(lossLst)} training accuracy: {sum(accLst)/len(accLst)}")
 
+                # for outVal, targetVal in zip(output[:5], target[:5]):
+                #     print(f"output: {outVal.item()}, target: {targetVal.item()}, difference: {outVal.item() - targetVal.item()}")
+                
+
     def mape(self, pred, target):
         return (torch.mean(torch.div(torch.abs(target.view(len(target), 1) - pred), torch.abs(target.view(len(target), 1))))).item()
+
+    def persAcc(self, pred, glucStats):
+        return torch.mean((torch.abs(pred - glucStats["mean"]) < glucStats["std"]).to(torch.float64)).item()
 
     def run(self):
         samples = [str(i).zfill(3) for i in range(1, 17)]

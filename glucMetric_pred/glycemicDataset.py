@@ -6,7 +6,7 @@ import torch
 from utils import createGlucStats
 
 class glycemicDataset(Dataset):
-    def __init__(self, samples, glucose, eda, hr, temp, hba1c, metric = "mean", dtype = torch.float64, seq_length = 28):
+    def __init__(self, samples, glucose, eda, hr, temp, hba1c, metric = "mean", dtype = torch.float64, seq_length = 28, normalize = False):
         self.samples = samples
         self.glucose = glucose
         self.eda = eda
@@ -17,6 +17,7 @@ class glycemicDataset(Dataset):
         self.pp5vals = pp5()
         self.metric = metric
         self.dtype = dtype
+        self.normalize = normalize
 
     def __len__(self):
         return self.glucose[self.samples[0]].__len__() - self.seq_length + 1
@@ -49,4 +50,12 @@ class glycemicDataset(Dataset):
         edaMean = np.array(list(map(np.mean, np.array_split(edaSample, self.seq_length))))
         hrMean = np.array(list(map(np.mean, np.array_split(hrSample, self.seq_length))))
         tempMean = np.array(list(map(np.mean, np.array_split(tempSample, self.seq_length))))
-        return (sample, edaMean, hrMean, tempMean, glucStats[self.metric])
+        if self.normalize:
+            return (sample, self.normalizeFn(edaMean), self.normalizeFn(hrMean), self.normalizeFn(tempMean), glucStats)
+        return (sample, edaMean, hrMean, tempMean, glucStats)
+    
+    def normalizeFn(self, data, eps = 1e-5):
+        var = np.var(data)
+        mean = np.mean(data)
+        scaled_data = (data - mean) / np.sqrt(var + eps)
+        return scaled_data
