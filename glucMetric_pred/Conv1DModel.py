@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class Conv1DModel(nn.Module):
-    def __init__(self, dropout_p = 0):
+    def __init__(self, dropout_p = 0, normalize = False):
         super(Conv1DModel, self).__init__()
         # input: 28 x 3
         # 3 channels for each of the different modalities
@@ -18,6 +18,7 @@ class Conv1DModel(nn.Module):
         self.dropout = nn.Dropout(dropout_p)
         self.fc1 = nn.Linear(64 * 6, 64)
         self.fc2 = nn.Linear(64, 1)
+        self.normalize = normalize
     
     def forward(self, x):
         x = torch.tensor(x.clone().detach().requires_grad_(True), dtype=self.conv1.weight.dtype)
