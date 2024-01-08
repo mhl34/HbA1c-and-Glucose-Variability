@@ -4,3 +4,4 @@ class pp5:
         self.eda = 1200
         self.hr = 300
         self.temp = 1200
+        self.acc = 9600

@@ -21,7 +21,7 @@ from LstmModel import LstmModel
 from TransformerModel import TransformerModel
 from DannModel import DannModel
 from SslModel import SslModel
-from torch.optim.lr_scheduler import StepLR
+from torch.optim.lr_scheduler import StepLR, CosineAnnealingLR
 from Loss import Loss
 
 class runModel:
@@ -43,7 +43,7 @@ class runModel:
         self.normalize = args.normalize
         self.dropout_p = 0.5
         self.domain_lambda = 0.01
-        self.batch_size = 64
+        self.batch_size = 32
 
     def modelChooser(self, modelType, samples):
         if modelType == "conv1d":
@@ -75,18 +75,19 @@ class runModel:
         edaData = dataProcessor.loadData(samples, "eda")
         tempData = dataProcessor.loadData(samples, "temp")
         hrData = dataProcessor.loadData(samples, "hr")
-        # accData = dataProcessor.loadData(samples, "acc")
+        accData = dataProcessor.loadData(samples, "acc")
 
         hba1c = dataProcessor.hba1c(samples)
 
-        train_dataset = glycemicDataset(samples, glucoseData, edaData, hrData, tempData, hba1c, metric = self.glucMetric, dtype = self.dtype, seq_length = self.seq_length, normalize = self.normalize)
+        train_dataset = glycemicDataset(samples, glucoseData, edaData, hrData, tempData, accData, hba1c, metric = self.glucMetric, dtype = self.dtype, seq_length = self.seq_length, normalize = self.normalize)
         # returns eda, hr, temp, then hba1c
         train_dataloader = DataLoader(train_dataset, batch_size = self.batch_size, shuffle = True)
 
         criterion = Loss()
         optimizer = optim.Adam(model.parameters(), lr = 1e-3, weight_decay = 1e-8)
         # optimizer = optim.SGD(model.parameters(), lr = 1e-6, momentum = 0.5, weight_decay = 1e-8)
-        scheduler = StepLR(optimizer, step_size=int(self.num_epochs/5), gamma=0.1)
+        # scheduler = StepLR(optimizer, step_size=int(self.num_epochs/5), gamma=0.1)
+        scheduler = CosineAnnealingLR(optimizer, T_max=self.num_epochs)
 
         for epoch in range(self.num_epochs):
 
@@ -98,9 +99,9 @@ class runModel:
 
             len_dataloader = len(train_dataloader)
 
-            for batch_idx, (sample, eda, hr, temp, glucStats) in progress_bar:
+            for batch_idx, (sample, eda, hr, temp, acc, glucStats) in progress_bar:
                 # stack the inputs and feed as 3 channel input
-                input = torch.stack((eda, hr, temp)).permute((1,0,2)).to(self.dtype)
+                input = torch.stack((eda, hr, temp, acc)).permute((1,0,2)).to(self.dtype)
 
                 target = glucStats[self.glucMetric]
 
@@ -160,11 +161,11 @@ class runModel:
         edaData = dataProcessor.loadData(samples, "eda")
         tempData = dataProcessor.loadData(samples, "temp")
         hrData = dataProcessor.loadData(samples, "hr")
-        # accData = dataProcessor.loadData(samples, "acc")
+        accData = dataProcessor.loadData(samples, "acc")
 
         hba1c = dataProcessor.hba1c(samples)
 
-        val_dataset = glycemicDataset(samples, glucoseData, edaData, hrData, tempData, hba1c, metric = self.glucMetric, dtype = self.dtype, seq_length = self.seq_length, normalize = self.normalize)
+        val_dataset = glycemicDataset(samples, glucoseData, edaData, hrData, tempData, accData, hba1c, metric = self.glucMetric, dtype = self.dtype, seq_length = self.seq_length, normalize = self.normalize)
         # returns eda, hr, temp, then hba1c
         val_dataloader = DataLoader(val_dataset, batch_size = self.batch_size, shuffle = True)
 
@@ -177,11 +178,13 @@ class runModel:
                 
                 lossLst = []
                 accLst = []
+                persAccList = []
 
                 len_dataloader = len(val_dataloader)
 
-                for batch_idx, (_, eda, hr, temp, glucStats) in progress_bar:
-                    input = torch.stack((eda, hr, temp)).permute((1,0,2)).to(self.dtype)
+                for batch_idx, (_, eda, hr, temp, acc, glucStats) in progress_bar:
+                    # stack the inputs and feed as 3 channel input
+                    input = torch.stack((eda, hr, temp, acc)).permute((1,0,2)).to(self.dtype)
 
                     target = glucStats[self.glucMetric]
 
@@ -204,11 +207,14 @@ class runModel:
 
                     lossLst.append(loss.item())
                     accLst.append(1 - self.mape(output, target))
+                    persAccList.append(self.persAcc(output, glucStats))
 
                 print(f"epoch {epoch} training loss: {sum(lossLst)/len(lossLst)} training accuracy: {sum(accLst)/len(accLst)}")
 
-                # for outVal, targetVal in zip(output[:5], target[:5]):
-                #     print(f"output: {outVal.item()}, target: {targetVal.item()}, difference: {outVal.item() - targetVal.item()}")
+                print(f"pers category accuracy: {sum(persAccList)/len(persAccList)}")
+
+                for outVal, targetVal in zip(output[:5], target[:5]):
+                    print(f"output: {outVal.item()}, target: {targetVal.item()}, difference: {outVal.item() - targetVal.item()}")
                 
 
     def mape(self, pred, target):

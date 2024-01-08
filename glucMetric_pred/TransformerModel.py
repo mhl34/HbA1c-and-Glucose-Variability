@@ -37,8 +37,11 @@ class TransformerModel(nn.Module):
         self.encoder_eda = nn.TransformerEncoderLayer(d_model=self.num_features, nhead=self.num_head, norm_first = True, dtype = self.dtype)
         self.encoder_hr = nn.TransformerEncoderLayer(d_model=self.num_features, nhead=self.num_head, norm_first = True, dtype = self.dtype)
         self.encoder_temp = nn.TransformerEncoderLayer(d_model=self.num_features, nhead=self.num_head, norm_first = True, dtype = self.dtype)
+        self.encoder_acc = nn.TransformerEncoderLayer(d_model=self.num_features, nhead=self.num_head, norm_first = True, dtype = self.dtype)
 
-        self.fc1 = nn.Linear(self.num_features * 3, 256, dtype = self.dtype)
+        self.decoder = nn.TransformerDecoderLayer(d_model=self.num_features, nhead=self.num_head, norm_first = True, dtype = self.dtype)
+
+        self.fc1 = nn.Linear(self.num_features * 4, 256, dtype = self.dtype)
         self.fc2 = nn.Linear(256, 64, dtype = self.dtype)
         self.fc3 = nn.Linear(64, 1, dtype = self.dtype)
 
@@ -58,12 +61,14 @@ class TransformerModel(nn.Module):
         eda = self.embedding(src[:, 0, :])
         hr = self.embedding(src[:, 1, :])
         temp = self.embedding(src[:, 2, :])
+        acc = self.embedding(src[:, 3, :])
 
         edaTransformerOut = self.encoder_eda(eda)
         hrTransformerOut = self.encoder_hr(hr)
         tempTransformerOut = self.encoder_temp(temp)
+        accTransformerOut = self.encoder_acc(acc)
 
-        out = torch.cat((edaTransformerOut, hrTransformerOut, tempTransformerOut), 1).to(self.dtype)
+        out = torch.cat((edaTransformerOut, hrTransformerOut, tempTransformerOut, accTransformerOut), 1).to(self.dtype)
 
         out = self.fc1(self.dropout(out))
         out = self.fc2(self.dropout(out))
