@@ -5,8 +5,9 @@ import random
 from ChannelFC import ChannelFC
 
 class SslModel(nn.Module):
-    def __init__(self, mask_len, dropout = 0):
+    def __init__(self, mask_len, dropout = 0, seq_len = 28):
         super(SslModel, self).__init__()
+        self.seq_len = seq_len
         self.num_seqs = 4
         # input: 28 x 3
         # 3 channels for each of the different modalities
@@ -19,7 +20,7 @@ class SslModel(nn.Module):
         # output: 6 x 64
         self.conv3 = nn.Conv1d(in_channels = 16, out_channels = 64, kernel_size = 5, stride = 1)
         self.dropout = nn.Dropout(dropout)
-        self.fc1 = nn.Linear(64 * 6, 64)
+        self.fc1 = nn.Linear(64 * (((self.seq_len - 4) // 2) - 2 - 4), 64)
         self.fc2 = nn.Linear(64, 1)
         self.mask_len = mask_len
 

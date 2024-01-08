@@ -31,6 +31,7 @@ class runModel:
         parser.add_argument("-gm", "--glucMetric", default = "mean", dest="glucMetric", help="input the type of glucose metric you want to regress for")
         parser.add_argument("-e", "--epochs", default=100, dest="num_epochs", help="input the number of epochs to run")
         parser.add_argument("-n", action='store_true', dest="normalize", help="input whether or not to normalize the input sequence")
+        parser.add_argument("-s", "--seq_len", default=28, dest="seq_len", help="input the sequence length to analyze")
         args = parser.parse_args()
         self.modelType = args.modelType
         self.glucMetric = args.glucMetric
@@ -38,7 +39,7 @@ class runModel:
         self.mainDir = mainDir
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.max_norm = 1
-        self.seq_length = 28
+        self.seq_length = int(args.seq_len)
         self.num_epochs = int(args.num_epochs)
         self.normalize = args.normalize
         self.dropout_p = 0.5
@@ -48,7 +49,7 @@ class runModel:
     def modelChooser(self, modelType, samples):
         if modelType == "conv1d":
             print(f"model {modelType}")
-            return Conv1DModel(self.dropout_p)
+            return Conv1DModel(self.dropout_p, seq_len = self.seq_length)
         elif modelType == "lstm":
             print(f"model {modelType}")
             return LstmModel(input_size = self.seq_length, hidden_size = 100, num_layers = 8, batch_first = True, dropout = self.dropout_p, dtype = self.dtype)
@@ -57,10 +58,10 @@ class runModel:
             return TransformerModel(num_features = 1024, num_head = 256, seq_length = self.seq_length, dropout_p = self.dropout_p, norm_first = True, dtype = self.dtype)
         elif modelType == "dann":
             print(f"model {modelType}")
-            return DannModel(self.modelType, samples, dropout = self.dropout_p)
+            return DannModel(self.modelType, samples, dropout = self.dropout_p, seq_len = self.seq_length)
         elif modelType == "ssl":
             print(f"model {modelType}")
-            return SslModel(mask_len = 7, dropout = self.dropout_p)
+            return SslModel(mask_len = 7, dropout = self.dropout_p, seq_len = self.seq_length)
         return None
 
     def train(self, samples, model):

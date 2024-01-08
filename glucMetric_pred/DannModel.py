@@ -7,8 +7,9 @@ from GradientReversalLayer import GradientReversalLayer
 # output: guess on domain (Person as Domain)
 # params: modelType
 class DannModel(nn.Module):
-    def __init__(self, modelType, samples, dropout = 0.5):
+    def __init__(self, modelType, samples, dropout = 0.5, seq_len = 28):
         super(DannModel, self).__init__()
+        self.seq_len = seq_len
         self.num_seqs = 4
         self.modelType = modelType
         self.samples = samples
@@ -23,7 +24,7 @@ class DannModel(nn.Module):
         )
         self.classifier = nn.Sequential(
             self.dropout_layer,
-            nn.Linear(64 * 6, 64),
+            nn.Linear(64 * (((self.seq_len - 4) // 2) - 2 - 4), 64),
             nn.ReLU(),
             nn.Linear(64, 1)
         )
@@ -53,8 +54,9 @@ class DannModel(nn.Module):
         return dann_output, task_output
 
     def inputDimCalc(self, modelType):
+
         if modelType == "conv1d" or modelType == "dann":
-            return 64 * 6
+            return 64 * (((self.seq_len - 4) // 2) - 2 - 4)
         if modelType == "lstm":
             return 100 * 3
         if modelType == "transformer":
