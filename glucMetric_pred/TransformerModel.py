@@ -39,23 +39,22 @@ class TransformerModel(nn.Module):
         self.encoder_temp = nn.TransformerEncoderLayer(d_model=self.num_features, nhead=self.num_head, norm_first = True, dtype = self.dtype)
         self.encoder_acc = nn.TransformerEncoderLayer(d_model=self.num_features, nhead=self.num_head, norm_first = True, dtype = self.dtype)
 
-        self.decoder = nn.TransformerDecoderLayer(d_model=self.num_features, nhead=self.num_head, norm_first = True, dtype = self.dtype)
+        self.decoder = nn.TransformerDecoderLayer(d_model=self.num_features * 4, nhead=self.num_head, dtype = self.dtype)
+        # self.decoder = nn.TransformerDecoder(self.decoder_layer, num_layers=1)  # Using a single layer
 
-        self.fc1 = nn.Linear(self.num_features * 4, 256, dtype = self.dtype)
-        self.fc2 = nn.Linear(256, 64, dtype = self.dtype)
-        self.fc3 = nn.Linear(64, 1, dtype = self.dtype)
 
-        # nn.init.xavier_uniform_(self.fc1.weight)
-        # nn.init.xavier_uniform_(self.fc2.weight)
-        # nn.init.xavier_uniform_(self.fc3.weight)
+        # self.fc1 = nn.Linear(self.num_features * 4, 256, dtype = self.dtype)
+        # self.fc2 = nn.Linear(256, 64, dtype = self.dtype)
+        # self.fc3 = nn.Linear(64, 1, dtype = self.dtype)
+
+        self.fc1 = nn.Linear(self.num_features * 4, 1)
 
         self.dropout = nn.Dropout(dropout_p)
-        self.decoder = nn.Identity()
 
     # function: forward of model
     # input: src, tgt, tgt_mask
     # output: output after forward run through model
-    def forward(self, src):
+    def forward(self, tgt, src):
         # Src size must be (batch_size, src, sequence_length)
         # Tgt size must be (batch_size, tgt, sequence_length)
         eda = self.embedding(src[:, 0, :])
@@ -70,7 +69,19 @@ class TransformerModel(nn.Module):
 
         out = torch.cat((edaTransformerOut, hrTransformerOut, tempTransformerOut, accTransformerOut), 1).to(self.dtype)
 
-        out = self.fc1(self.dropout(out))
-        out = self.fc2(self.dropout(out))
-        out = self.fc3(self.dropout(out))
+        # out = self.fc1(self.dropout(out))
+        # out = self.fc2(self.dropout(out))
+        # out = self.fc3(self.dropout(out))
+        out = self.decoder(tgt = tgt * torch.ones_like(out), memory = out, tgt_mask = self.get_tgt_mask(len(tgt)))
+        out = torch.tensor(out.clone().detach().requires_grad_(True), dtype=self.fc1.weight.dtype)
+        out = self.fc1(out)
         return out
+    
+    # function: creates a mask with 0's in bottom left of matrix
+    # input: size
+    # output: mask
+    def get_tgt_mask(self, size) -> torch.tensor:
+        mask = torch.tril(torch.ones(size,size) * float('-inf')).T
+        for i in range(size):
+            mask[i, i] = 0
+        return mask.to(self.dtype)
