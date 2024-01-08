@@ -111,8 +111,10 @@ class runModel:
                 p = float(batch_idx + epoch * len_dataloader) / (self.num_epochs * len_dataloader)
                 alpha = 2. / (1. + np.exp(-10 * p)) - 1
 
-                if self.modelType == "conv1d" or self.modelType == "transformer" or self.modelType == "lstm":
+                if self.modelType == "conv1d" or self.modelType == "lstm":
                     output = model(input).to(self.dtype).squeeze()
+                elif self.modelType == "transformer":
+                    output = model(target.view(target.shape[0], 1), input).to(self.dtype).squeeze()
                 elif self.modelType == "dann":
                     modelOut = model(input, alpha)
                     dann_output, output = modelOut[0].to(self.dtype), modelOut[1].to(self.dtype).squeeze()
@@ -193,8 +195,10 @@ class runModel:
                     alpha = 2. / (1. + np.exp(-10 * p)) - 1
                     
                     # identify what type of outputs come from the model
-                    if self.modelType == "conv1d" or self.modelType == "transformer" or self.modelType == "lstm":
+                    if self.modelType == "conv1d" or self.modelType == "lstm":
                         output = model(input).to(self.dtype).squeeze()
+                    elif self.modelType == "transformer":
+                        output = model(target.view(target.shape[0], 1), input).to(self.dtype).squeeze()
                     elif self.modelType == "dann":
                         modelOut = model(input, alpha)
                         _, output = modelOut[0], modelOut[1].to(self.dtype).squeeze()
