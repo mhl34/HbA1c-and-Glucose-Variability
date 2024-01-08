@@ -46,7 +46,7 @@ class DataProcessor:
                 lst_x = pd.to_numeric(df[' acc_x']).to_numpy()
                 lst_y = pd.to_numeric(df[' acc_y']).to_numpy()
                 lst_z = pd.to_numeric(df[' acc_z']).to_numpy()
-                data[sample] = np.sqrt([np.square(lst_x) + np.square(lst_y) + np.square(lst_z)])
+                data[sample] = np.sqrt(np.sum([np.square(lst_x), np.square(lst_y), np.square(lst_z)], axis=0))
         else:
             for sample in samples:
                 data[sample] = np.array([])

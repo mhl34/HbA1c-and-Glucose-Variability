@@ -9,11 +9,12 @@ from GradientReversalLayer import GradientReversalLayer
 class DannModel(nn.Module):
     def __init__(self, modelType, samples, dropout = 0.5):
         super(DannModel, self).__init__()
+        self.num_seqs = 4
         self.modelType = modelType
         self.samples = samples
         self.dropout_layer = nn.Dropout(p = dropout)
         self.featureExtractor = nn.Sequential(
-            nn.Conv1d(in_channels = 3, out_channels = 8, kernel_size = 5, stride = 2),
+            nn.Conv1d(in_channels = self.num_seqs, out_channels = 8, kernel_size = 5, stride = 2),
             nn.ReLU(),
             nn.Conv1d(in_channels = 8, out_channels = 16, kernel_size = 3, stride = 1),
             nn.ReLU(),

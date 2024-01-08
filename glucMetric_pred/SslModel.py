@@ -7,10 +7,11 @@ from ChannelFC import ChannelFC
 class SslModel(nn.Module):
     def __init__(self, mask_len, dropout = 0):
         super(SslModel, self).__init__()
+        self.num_seqs = 4
         # input: 28 x 3
         # 3 channels for each of the different modalities
         # output: 12 x 8
-        self.conv1 = nn.Conv1d(in_channels = 3, out_channels = 8, kernel_size = 5, stride = 2)
+        self.conv1 = nn.Conv1d(in_channels = self.num_seqs, out_channels = 8, kernel_size = 5, stride = 2)
         # input: 12 x 8
         # output: 10 x 16
         self.conv2 = nn.Conv1d(in_channels = 8, out_channels = 16, kernel_size = 3, stride = 1)
@@ -26,7 +27,7 @@ class SslModel(nn.Module):
             ChannelFC(64, 6),
             nn.ConvTranspose1d(in_channels = 64, out_channels = 16, kernel_size = 5, stride = 1),
             nn.ConvTranspose1d(in_channels = 16, out_channels = 8, kernel_size = 3, stride = 1),
-            nn.ConvTranspose1d(in_channels = 8, out_channels = 3, kernel_size = 6, stride = 2)
+            nn.ConvTranspose1d(in_channels = 8, out_channels = self.num_seqs, kernel_size = 6, stride = 2)
         )
 
     

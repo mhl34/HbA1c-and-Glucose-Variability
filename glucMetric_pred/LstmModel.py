@@ -14,7 +14,7 @@ class LstmModel(nn.Module):
         self.dropout = dropout
         self.dtype = dtype
         self.lstm = nn.LSTM(input_size = self.input_size, hidden_size = self.hidden_size, num_layers = self.num_layers, batch_first = self.batch_first, dropout = self.dropout, dtype = self.dtype)
-        self.fc1 = nn.Linear(self.hidden_size * 3, 64, dtype = self.dtype)
+        self.fc1 = nn.Linear(self.hidden_size * 4, 64, dtype = self.dtype)
         self.fc2 = nn.Linear(64, 1, dtype = self.dtype)
         self.ssl = True
         self.mask_len = 7
