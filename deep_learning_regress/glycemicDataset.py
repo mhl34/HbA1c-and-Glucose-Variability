@@ -60,13 +60,15 @@ class glycemicDataset(Dataset):
         tempSec = tempSample[tempStart: tempStart + self.seq_length * self.pp5vals.temp]
         accSec = accSample[accStart: accStart + self.seq_length * self.pp5vals.acc]
         glucStats = createGlucStats(glucoseSec)
+        # create averages across sequence length
         edaMean = np.array(list(map(np.mean, np.array_split(edaSec, self.seq_length))))
         hrMean = np.array(list(map(np.mean, np.array_split(hrSec, self.seq_length))))
         tempMean = np.array(list(map(np.mean, np.array_split(tempSec, self.seq_length))))
         accMean = np.array(list(map(np.mean, np.array_split(accSec, self.seq_length))))
+        glucMean = np.array(list(map(np.mean, np.array_split(glucoseSec, self.seq_length))))
         if self.normalize:
-            return (sample, self.normalizeFn(edaMean), self.normalizeFn(hrMean), self.normalizeFn(tempMean), self.normalizeFn(accMean), glucStats)
-        return (sample, edaMean, hrMean, tempMean, accMean, glucStats)
+            return (sample, self.normalizeFn(edaMean), self.normalizeFn(hrMean), self.normalizeFn(tempMean), self.normalizeFn(accMean), self.normalizeFn(glucMean), glucStats)
+        return (sample, edaMean, hrMean, tempMean, accMean, glucMean, glucStats)
     
     def normalizeFn(self, data, eps = 1e-5):
         data = data[~np.isnan(data)]
