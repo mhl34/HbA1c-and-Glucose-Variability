@@ -65,6 +65,7 @@ class runModel:
         return None
 
     def train(self, samples, model):
+        print(self.device)
         print("============================")
         print("Training...")
         print("============================")
@@ -100,7 +101,7 @@ class runModel:
 
             len_dataloader = len(train_dataloader)
 
-            for batch_idx, (sample, eda, hr, temp, acc, glucStats) in progress_bar:
+            for batch_idx, (sample, eda, hr, temp, acc, gluc, glucStats) in progress_bar:
                 # stack the inputs and feed as 3 channel input
                 input = torch.stack((eda, hr, temp, acc)).permute((1,0,2)).to(self.dtype)
 
@@ -185,7 +186,7 @@ class runModel:
 
                 len_dataloader = len(val_dataloader)
 
-                for batch_idx, (_, eda, hr, temp, acc, glucStats) in progress_bar:
+                for batch_idx, (_, eda, hr, temp, acc, gluc, glucStats) in progress_bar:
                     # stack the inputs and feed as 3 channel input
                     input = torch.stack((eda, hr, temp, acc)).permute((1,0,2)).to(self.dtype)
 
@@ -237,6 +238,6 @@ class runModel:
         self.evaluate(valSamples, model)
 
 if __name__ == "__main__":
-    mainDir = "/home/mhl34/big-ideas-lab-glycemic-variability-and-wearable-device-data-1.1.0/"
+    mainDir = "/home/jovyan/work/physionet.org/files/big-ideas-glycemic-wearable/1.0.0/"
     obj = runModel(mainDir)
     obj.run()
