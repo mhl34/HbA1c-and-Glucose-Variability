@@ -21,6 +21,7 @@ from LstmModel import LstmModel
 from TransformerModel import TransformerModel
 from DannModel import DannModel
 from SslModel import SslModel
+from UNet import UNet
 from torch.optim.lr_scheduler import StepLR, CosineAnnealingLR
 from Loss import Loss
 
@@ -45,11 +46,12 @@ class runModel:
         self.dropout_p = 0.5
         self.domain_lambda = 0.01
         self.batch_size = 32
+        self.num_features = 5
 
     def modelChooser(self, modelType, samples):
         if modelType == "conv1d":
             print(f"model {modelType}")
-            return Conv1DModel(self.dropout_p, seq_len = self.seq_length)
+            return Conv1DModel(self.num_features, self.dropout_p, seq_len = self.seq_length)
         elif modelType == "lstm":
             print(f"model {modelType}")
             return LstmModel(input_size = self.seq_length, hidden_size = 100, num_layers = 8, batch_first = True, dropout = self.dropout_p, dtype = self.dtype)
@@ -62,6 +64,9 @@ class runModel:
         elif modelType == "ssl":
             print(f"model {modelType}")
             return SslModel(mask_len = 7, dropout = self.dropout_p, seq_len = self.seq_length)
+        elif modelType == "unet":
+            print(f"model {modelType}")
+            return UNet(self.num_features, normalize = False, seq_len = self.seq_length)
         return None
 
     def train(self, samples, model):
@@ -101,11 +106,13 @@ class runModel:
 
             len_dataloader = len(train_dataloader)
 
-            for batch_idx, (sample, eda, hr, temp, acc, gluc, glucStats) in progress_bar:
+            # sample, edaMean, hrMean, tempMean, accMean, glucPastMean, glucMean
+            
+            for batch_idx, (sample, eda, hr, temp, acc, glucPast, glucPres) in progress_bar:
                 # stack the inputs and feed as 3 channel input
-                input = torch.stack((eda, hr, temp, acc)).permute((1,0,2)).to(self.dtype)
+                input = torch.stack((eda, hr, temp, acc, glucPast)).permute((1,0,2)).to(self.dtype)
 
-                target = glucStats[self.glucMetric]
+                target = glucPres
 
                 # zero index the dann target
                 dannTarget = torch.tensor([int(i) - 1 for i in sample]).to(torch.long)
@@ -113,10 +120,10 @@ class runModel:
                 p = float(batch_idx + epoch * len_dataloader) / (self.num_epochs * len_dataloader)
                 alpha = 2. / (1. + np.exp(-10 * p)) - 1
 
-                if self.modelType == "conv1d" or self.modelType == "lstm":
+                if self.modelType == "conv1d" or self.modelType == "lstm" or self.modelType == "unet":
                     output = model(input).to(self.dtype).squeeze()
                 elif self.modelType == "transformer":
-                    output = model(target.view(target.shape[0], 1), input).to(self.dtype).squeeze()
+                    output = model(target, input).to(self.dtype).squeeze()
                 elif self.modelType == "dann":
                     modelOut = model(input, alpha)
                     dann_output, output = modelOut[0].to(self.dtype), modelOut[1].to(self.dtype).squeeze()
@@ -136,15 +143,18 @@ class runModel:
 
                 lossLst.append(loss.item())
                 accLst.append(1 - self.mape(output, target))
-                persAccList.append(self.persAcc(output, glucStats))
+                # persAccList.append(self.persAcc(output, target))
             scheduler.step()
 
             print(f"epoch {epoch + 1} training loss: {sum(lossLst)/len(lossLst)} learning rate: {scheduler.get_last_lr()} training accuracy: {sum(accLst)/len(accLst)}")
+            
+            print(output.shape, target.shape)
 
-            print(f"pers category accuracy: {sum(persAccList)/len(persAccList)}")
+            # print(f"pers category accuracy: {sum(persAccList)/len(persAccList)}")
 
-            # for outVal, targetVal in zip(output[:5], target[:5]):
-            #         print(f"output: {outVal.item()}, target: {targetVal.item()}, difference: {outVal.item() - targetVal.item()}")
+            # example output with the epoch
+            for outVal, targetVal in zip(output[-1][:3], target[-1][:3]):
+                    print(f"output: {outVal.item()}, target: {targetVal.item()}, difference: {outVal.item() - targetVal.item()}")
 
     def evaluate(self, samples, model):
         print("============================")
@@ -185,12 +195,14 @@ class runModel:
                 persAccList = []
 
                 len_dataloader = len(val_dataloader)
+                
+                # sample, edaMean, hrMean, tempMean, accMean, glucPastMean, glucMean
 
-                for batch_idx, (_, eda, hr, temp, acc, gluc, glucStats) in progress_bar:
+                for batch_idx, (_, eda, hr, temp, acc, glucPast, glucPres) in progress_bar:
                     # stack the inputs and feed as 3 channel input
-                    input = torch.stack((eda, hr, temp, acc)).permute((1,0,2)).to(self.dtype)
+                    input = torch.stack((eda, hr, temp, acc, glucPast)).permute((1,0,2)).to(self.dtype)
 
-                    target = glucStats[self.glucMetric]
+                    target = glucPres
 
                     # alpha value for dann model
                     p = float(batch_idx + epoch * len_dataloader) / (self.num_epochs * len_dataloader)
@@ -213,21 +225,22 @@ class runModel:
 
                     lossLst.append(loss.item())
                     accLst.append(1 - self.mape(output, target))
-                    persAccList.append(self.persAcc(output, glucStats))
+                    # persAccList.append(self.persAcc(output, glucStats))
 
                 print(f"epoch {epoch} training loss: {sum(lossLst)/len(lossLst)} training accuracy: {sum(accLst)/len(accLst)}")
 
-                print(f"pers category accuracy: {sum(persAccList)/len(persAccList)}")
+                # print(f"pers category accuracy: {sum(persAccList)/len(persAccList)}")
 
-                for outVal, targetVal in zip(output[:5], target[:5]):
-                    print(f"output: {outVal.item()}, target: {targetVal.item()}, difference: {outVal.item() - targetVal.item()}")
+                # example output with the final epoch
+                for outVal, targetVal in zip(output[-1][:3], target[-1][:3]):
+                        print(f"output: {outVal.item()}, target: {targetVal.item()}, difference: {outVal.item() - targetVal.item()}")
                 
 
     def mape(self, pred, target):
-        return (torch.mean(torch.div(torch.abs(target.view(len(target), 1) - pred), torch.abs(target.view(len(target), 1))))).item()
+        return (torch.mean(torch.div(torch.abs(target - pred), torch.abs(target)))).item()
 
-    def persAcc(self, pred, glucStats):
-        return torch.mean((torch.abs(pred - glucStats["mean"]) < glucStats["std"]).to(torch.float64)).item()
+    # def persAcc(self, pred, glucStats):
+    #     return torch.mean((torch.abs(pred - glucStats["mean"]) < glucStats["std"]).to(torch.float64)).item()
 
     def run(self):
         samples = [str(i).zfill(3) for i in range(1, 17)]
