@@ -32,24 +32,26 @@ class TransformerModel(nn.Module):
         self.norm_first = norm_first
         self.dtype = dtype
 
-        self.embedding = nn.Linear(self.seq_length, self.num_features, dtype = self.dtype)
+        self.embedding_eda = nn.Linear(self.seq_length, self.num_features, dtype = self.dtype)
+        self.embedding_hr = nn.Linear(self.seq_length, self.num_features, dtype = self.dtype)
+        self.embedding_temp = nn.Linear(self.seq_length, self.num_features, dtype = self.dtype)
+        self.embedding_acc = nn.Linear(self.seq_length, self.num_features, dtype = self.dtype)
+        self.embedding_gluc = nn.Linear(self.seq_length, self.num_features, dtype = self.dtype)
 
         self.encoder_eda = nn.TransformerEncoderLayer(d_model=self.num_features, nhead=self.num_head, norm_first = True, dtype = self.dtype)
         self.encoder_hr = nn.TransformerEncoderLayer(d_model=self.num_features, nhead=self.num_head, norm_first = True, dtype = self.dtype)
         self.encoder_temp = nn.TransformerEncoderLayer(d_model=self.num_features, nhead=self.num_head, norm_first = True, dtype = self.dtype)
         self.encoder_acc = nn.TransformerEncoderLayer(d_model=self.num_features, nhead=self.num_head, norm_first = True, dtype = self.dtype)
+        self.encoder_gluc_past = nn.TransformerEncoderLayer(d_model=self.num_features, nhead=self.num_head, norm_first = True, dtype = self.dtype)
+        
+        self.encoder_src = nn.TransformerEncoderLayer(d_model=self.num_features, nhead=self.num_head, norm_first = True, batch_first = True, dtype = self.dtype)
 
-        self.decoder = nn.TransformerDecoderLayer(d_model=self.num_features * 4, nhead=self.num_head, dtype = self.dtype)
+        self.decoder = nn.TransformerDecoderLayer(d_model=self.num_features, nhead=self.num_head, dtype = self.dtype)
         # self.decoder = nn.TransformerDecoder(self.decoder_layer, num_layers=1)  # Using a single layer
 
-
-        # self.fc1 = nn.Linear(self.num_features * 4, 256, dtype = self.dtype)
-        # self.fc2 = nn.Linear(256, 64, dtype = self.dtype)
-        # self.fc3 = nn.Linear(64, 1, dtype = self.dtype)
-
-        self.fc1 = nn.Linear(self.num_features * 4, 1)
-
         self.dropout = nn.Dropout(dropout_p)
+        self.fc1 = nn.Linear(self.num_features * 5, self.num_features, dtype = self.dtype)
+        self.fc2 = nn.Linear(self.num_features, self.seq_length, dtype = self.dtype)
 
     # function: forward of model
     # input: src, tgt, tgt_mask
@@ -57,24 +59,27 @@ class TransformerModel(nn.Module):
     def forward(self, tgt, src):
         # Src size must be (batch_size, src, sequence_length)
         # Tgt size must be (batch_size, tgt, sequence_length)
-        eda = self.embedding(src[:, 0, :])
-        hr = self.embedding(src[:, 1, :])
-        temp = self.embedding(src[:, 2, :])
-        acc = self.embedding(src[:, 3, :])
+        eda = self.embedding_eda(src[:, 0, :]).unsqueeze(1)
+        hr = self.embedding_hr(src[:, 1, :]).unsqueeze(1)
+        temp = self.embedding_temp(src[:, 2, :]).unsqueeze(1)
+        acc = self.embedding_acc(src[:, 3, :]).unsqueeze(1)
+        gluc_past = self.embedding_gluc(src[:, 4, :]).unsqueeze(1)
 
         edaTransformerOut = self.encoder_eda(eda)
         hrTransformerOut = self.encoder_hr(hr)
         tempTransformerOut = self.encoder_temp(temp)
         accTransformerOut = self.encoder_acc(acc)
+        glucPastTransformerOut = self.encoder_gluc_past(gluc_past)
 
-        out = torch.cat((edaTransformerOut, hrTransformerOut, tempTransformerOut, accTransformerOut), 1).to(self.dtype)
-
-        # out = self.fc1(self.dropout(out))
-        # out = self.fc2(self.dropout(out))
-        # out = self.fc3(self.dropout(out))
-        out = self.decoder(tgt = tgt * torch.ones_like(out), memory = out, tgt_mask = self.get_tgt_mask(len(tgt)))
+        out = torch.cat((edaTransformerOut, hrTransformerOut, tempTransformerOut, accTransformerOut, glucPastTransformerOut), -1).to(self.dtype)
+        
+        out = F.relu(self.fc1(self.dropout(out)))
+        
+        tgt = self.embedding_gluc(tgt).unsqueeze(1)
+        
+        out = self.decoder(tgt = tgt, memory = out, tgt_mask = self.get_tgt_mask(len(tgt)))
         out = torch.tensor(out.clone().detach().requires_grad_(True), dtype=self.fc1.weight.dtype)
-        out = self.fc1(out)
+        out = F.relu(self.fc2(self.dropout(out)))
         return out
     
     # function: creates a mask with 0's in bottom left of matrix
