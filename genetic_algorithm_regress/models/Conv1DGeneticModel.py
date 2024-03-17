@@ -4,13 +4,13 @@ import torch.nn.functional as F
 
 class Conv1DGeneticModel(nn.Module):
     def __init__(self, num_features, dropout_p = 0, normalize = False, seq_len = 28):
-        super(Conv1DModel, self).__init__()
-        self.num_features = 5
+        super(Conv1DGeneticModel, self).__init__()
+        self.num_features = num_features
         self.seq_len = seq_len
         # input: 28 x 4
         # 3 channels for each of the different modalities
         # output: 12 x 8
-        self.conv1 = nn.Conv1d(in_channels = self.num_seqs, out_channels = 8, kernel_size = 5, stride = 2)
+        self.conv1 = nn.Conv1d(in_channels = self.num_features, out_channels = 8, kernel_size = 5, stride = 2)
         # input: 12 x 8
         # output: 10 x 16
         self.conv2 = nn.Conv1d(in_channels = 8, out_channels = 16, kernel_size = 3, stride = 1)
