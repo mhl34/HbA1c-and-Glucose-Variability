@@ -23,7 +23,6 @@ def model_chooser(modelType, samples):
     pass
 
 def train(samples, model, featMetricList, main_dir, dtype = torch.float, seq_length = 28, normalize = False, batch_size = 32, num_epochs = 20):
-    print(self.device)
     print("============================")
     print("Training...")
     print("============================")
@@ -50,7 +49,7 @@ def train(samples, model, featMetricList, main_dir, dtype = torch.float, seq_len
     # scheduler = StepLR(optimizer, step_size=int(self.num_epochs/5), gamma=0.1)
     scheduler = CosineAnnealingLR(optimizer, T_max=num_epochs)
 
-    for epoch in range(self.num_epochs):
+    for epoch in range(num_epochs):
 
         progress_bar = tqdm(enumerate(train_dataloader), total=len(train_dataloader), desc=f'Epoch {epoch + 1}/{num_epochs}', unit='batch')
         
@@ -150,7 +149,7 @@ def evaluate(samples, model, featMetricList, main_dir, dtype = torch.float, seq_
     criterion = Loss()
 
     with torch.no_grad():
-        for epoch in range(self.num_epochs):
+        for epoch in range(num_epochs):
 
             progress_bar = tqdm(enumerate(val_dataloader), total=len(val_dataloader), desc=f'Epoch {epoch + 1}/{num_epochs}', unit='batch')
             

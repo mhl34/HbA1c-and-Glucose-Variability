@@ -44,11 +44,11 @@ class GeneticDataset(Dataset):
         accStart = glucStart * self.pp5vals.acc
         
         # truth value for gluc, eda, hr, temp, or acc
-        glucTruth = self.truthCheck(glucoseSample, glucStart)
-        edaTruth = self.truthCheck(edaSample, edaStart)
-        hrTruth = self.truthCheck(hrSample, hrStart)
-        tempTruth = self.truthCheck(tempSample, tempStart)
-        accTruth = self.truthCheck(accSample, accStart)
+        glucTruth = self.truthCheck(glucoseSample, glucStart, "glucose")
+        edaTruth = self.truthCheck(edaSample, edaStart, "eda")
+        hrTruth = self.truthCheck(hrSample, hrStart, "hr")
+        tempTruth = self.truthCheck(tempSample, tempStart, "temp")
+        accTruth = self.truthCheck(accSample, accStart, "acc")
         
         while glucTruth or edaTruth or hrTruth or tempTruth or accTruth:
         # while glucTruth or edaTruth or hrTruth or tempTruth:
@@ -57,11 +57,11 @@ class GeneticDataset(Dataset):
             hrStart = glucStart * self.pp5vals.hr
             tempStart = glucStart * self.pp5vals.temp
             accStart = glucStart * self.pp5vals.acc
-            glucTruth = self.truthCheck(glucoseSample, glucStart)
-            edaTruth = self.truthCheck(edaSample, edaStart)
-            hrTruth = self.truthCheck(hrSample, hrStart)
-            tempTruth = self.truthCheck(tempSample, tempStart)
-            accTruth = self.truthCheck(accSample, accStart)
+            glucTruth = self.truthCheck(glucoseSample, glucStart, "glucose")
+            edaTruth = self.truthCheck(edaSample, edaStart, "eda")
+            hrTruth = self.truthCheck(hrSample, hrStart, "hr")
+            tempTruth = self.truthCheck(tempSample, tempStart, "temp")
+            accTruth = self.truthCheck(accSample, accStart, "acc")
             
         glucosePastSec = glucoseSample[glucStart: glucStart + self.seq_length]
         glucoseSec = glucoseSample[glucStart + self.seq_length + 1: glucStart + 2 * self.seq_length + 1]
