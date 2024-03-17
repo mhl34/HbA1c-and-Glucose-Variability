@@ -109,10 +109,9 @@ def train(samples, model, featMetricList, main_dir, dtype = torch.float, seq_len
         
         # verify shape
         # print(output.shape, target.shape)
-
         # print(f"pers category accuracy: {sum(persAccList)/len(persAccList)}")
-
         # example output with the epoch
+
         for outVal, targetVal in zip(output[-1][:3], target[-1][:3]):
             print(f"output: {outVal.item()}, target: {targetVal.item()}, difference: {outVal.item() - targetVal.item()}")
     

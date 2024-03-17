@@ -70,14 +70,14 @@ class GeneticDataset(Dataset):
         tempSec = tempSample[tempStart: tempStart + self.seq_length * self.pp5vals.temp]
         accSec = accSample[accStart: accStart + self.seq_length * self.pp5vals.acc]
         
-        sec_dict = {"eda" : edaSec, "hr" : hrSec, "temp" : tempSec, "accSec" : accSec}
+        sec_dict = {"eda" : edaSec, "hr" : hrSec, "temp" : tempSec, "acc" : accSec}
         
         sample_list = []
 
         for data in self.featMetricDict.keys():
             for feature in self.featMetricDict[data]:
-                sample_list.append(np.array(list(map(self.featureSelect(sample), np.array_split(sec_dict[data], self.seq_length)))))
-        
+                sample_list.append(np.array(list(map(self.featureSelect(feature), np.array_split(sec_dict[data], self.seq_length)))))
+
         # create averages across sequence length
         glucPastMean = np.array(list(map(np.mean, np.array_split(glucosePastSec, self.seq_length))))
         glucMean = np.array(list(map(np.mean, np.array_split(glucoseSec, self.seq_length))))
@@ -111,14 +111,14 @@ class GeneticDataset(Dataset):
             return
             
     def processFeatMetricList(self):
-        feat_metric_dict = {}
+        feat_metric_dict = {"eda": [], "hr": [], "temp": [], "acc": []}
         feature_type_dict = {0: "eda", 1: "hr", 2: "temp", 3: "acc"}
         feature_select_dict = {0: "max", 1: "min", 2: "mean", 3: "q1", 4: "q3", 5: "skew"}
         for feature_type in range(4):
             for feature_calc in range(6):
-                idx =  feature_type * 4 + feature_calc
+                idx =  feature_type * 6 + feature_calc
                 if self.featMetricList[idx]:
-                    feat_metric_dict[feature_type_dict[feature_type]] = feature_select_dict[feature_calc]
+                    feat_metric_dict[feature_type_dict[feature_type]].append(feature_select_dict[feature_calc])
         return feat_metric_dict
     
     def normalizeFn(self, data, eps = 1e-5):

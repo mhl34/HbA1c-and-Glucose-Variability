@@ -16,7 +16,7 @@ class GeneticAlgorithm:
 
         # genetic training regiment
         self.num_iter = 100
-        self.num_bits = 20
+        self.num_bits = 24
         self.num_pop = 100
         self.rate_cross = 0.9
         self.rate_mut = 1.0 / float(self.num_bits)
@@ -73,7 +73,7 @@ class GeneticAlgorithm:
     # output: the return value of the model accuracy
     def objective_function(self, x):
         num_features = sum(x)
-        model = Conv1DGeneticModel(num_features, dropout_p = self.dropout_p, normalize = False, seq_len = self.seq_len)
+        model = Conv1DGeneticModel(num_features = num_features, dropout_p = self.dropout_p, normalize = False, seq_len = self.seq_len)
         train(samples = self.trainSamples, model = model, featMetricList = x, main_dir = self.main_dir)
         loss_val = evaluate(samples = self.valSamples, model = model, featMetricList = x, main_dir = self.main_dir)
         return loss_val
