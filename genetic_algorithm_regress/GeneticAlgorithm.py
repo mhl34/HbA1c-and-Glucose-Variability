@@ -30,7 +30,9 @@ class GeneticAlgorithm:
         
         # os parameters
         self.main_dir = "/Users/matthewlee/Matthew/Work/DunnLab/big-ideas-lab-glycemic-variability-and-wearable-device-data-1.1.0/"
+        # self.main_dir = "/home/jovyan/work/physionet.org/files/big-ideas-glycemic-wearable/1.0.0/"
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        print(f"device: {self.device}")
         
     # function: runs the genetic algorithm procedure
     # input: onemax, num_bits (number of bits), num_iter (number of iterations to go through), num_pop (number of animals in a population), rate_cross (rate of crossover), rate_mut (rate of mutation)

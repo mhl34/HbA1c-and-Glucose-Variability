@@ -89,7 +89,7 @@ class GeneticDataset(Dataset):
         
         # normalize if needed
         if self.normalize:
-            return tuple([self.normalizeFn(seq) for seq in sample_list])
+            return [self.normalizeFn(seq) for seq in sample_list]
         
         #return normal
         return tuple(sample_list)

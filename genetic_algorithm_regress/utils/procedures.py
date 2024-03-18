@@ -101,7 +101,7 @@ def train(samples, model, featMetricList, main_dir, dtype = torch.float64, seq_l
             optimizer.step()
 
             lossLst.append(loss.item())
-            # accLst.append(1 - self.mape(output, target))
+            accLst.append(1 - mape(output, target))
             # persAccList.append(self.persAcc(output, target))
         scheduler.step()
 
@@ -190,7 +190,7 @@ def evaluate(samples, model, featMetricList, main_dir, dtype = torch.float64, se
                 loss = criterion(output, target)
 
                 lossLst.append(loss.item())
-                # accLst.append(1 - self.mape(output, target))
+                accLst.append(1 - mape(output, target))
                 # persAccList.append(self.persAcc(output, glucStats))
 
             print(f"epoch {epoch} training loss: {sum(lossLst)/len(lossLst)} training accuracy: {sum(accLst)/len(accLst)}")
@@ -201,3 +201,6 @@ def evaluate(samples, model, featMetricList, main_dir, dtype = torch.float64, se
             for outVal, targetVal in zip(output[-1][:3], target[-1][:3]):
                 print(f"output: {outVal.item()}, target: {targetVal.item()}, difference: {outVal.item() - targetVal.item()}")
     return lossLst[-1]
+
+def mape(pred, target):
+    return (torch.mean(torch.div(torch.abs(target - pred), torch.abs(target)))).item()
