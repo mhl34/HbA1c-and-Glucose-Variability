@@ -34,18 +34,26 @@ class GeneticAlgorithm:
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         print(f"device: {self.device}")
         
-    # function: runs the genetic algorithm procedure
-    # input: onemax, num_bits (number of bits), num_iter (number of iterations to go through), num_pop (number of animals in a population), rate_cross (rate of crossover), rate_mut (rate of mutation)
-    # output: 
+    async def run_genetic_algorithm(self, pop):
+        # List to store coroutines for objective function evaluations
+        coroutines = [self.objective_function(c) for c in pop]
+        # Run coroutines concurrently using asyncio.gather()
+        scores = await asyncio.gather(*coroutines)
+        return scores
+
     def genetic_algorithm(self, num_bits, num_iter, num_pop, rate_cross, rate_mut):
-        # initialize the population
-        pop = self.initial_population(num_bits = num_bits, num_pop = num_pop)
-        # initialize the best and best scores
+        # Initialize the population
+        pop = self.initial_population(num_bits=num_bits, num_pop=num_pop)
+        # Initialize the best and best scores
         best, best_score = 0, self.objective_function(pop[0])
-        # iterate for the number of generations specified
+        
+        # Create event loop
+        loop = asyncio.get_event_loop()
+        
+        # Iterate for the number of generations specified
         for _ in range(num_iter):
-            # score them based on the objective function (MSE loss for the models)
-            scores = [self.objective_function(c) for c in pop]
+            # Get scores concurrently
+            scores = loop.run_until_complete(self.run_genetic_algorithm(pop))
             # iterate through the population
             for i in range(num_pop):
                 # if the score is better than replace best by best score and the individual that scored the best
