@@ -8,7 +8,7 @@ from utils.pp5 import pp5
 
 class GeneticDataset(Dataset):
     # max, min, mean, q1, q3, std, skew
-    def __init__(self, samples, glucose, eda, hr, temp, acc, hba1c, featMetricList, dtype = torch.float64, seq_length = 28, normalize = False):
+    def __init__(self, samples, glucose, eda, hr, temp, acc, hba1c, featMetricList, dtype = torch.float64, seq_length = 28, normalize = False, device = "cpu"):
         self.samples = samples
         self.glucose = glucose
         self.eda = eda
@@ -22,6 +22,7 @@ class GeneticDataset(Dataset):
         self.featMetricDict = self.processFeatMetricList()
         self.dtype = dtype
         self.normalize = normalize
+        self.device = device
 
     def __len__(self):
         return self.glucose[self.samples[0]].__len__() - self.seq_length + 1
@@ -76,11 +77,11 @@ class GeneticDataset(Dataset):
 
         for data in self.featMetricDict.keys():
             for feature in self.featMetricDict[data]:
-                sample_list.append(np.array(list(map(self.featureSelect(feature), np.array_split(sec_dict[data], self.seq_length)))))
+                sample_list.append(torch.Tensor(np.array(list(map(self.featureSelect(feature), np.array_split(sec_dict[data], self.seq_length))))).to(self.device))
 
         # create averages across sequence length
-        glucPastMean = np.array(list(map(np.mean, np.array_split(glucosePastSec, self.seq_length))))
-        glucMean = np.array(list(map(np.mean, np.array_split(glucoseSec, self.seq_length))))
+        glucPastMean = torch.Tensor(np.array(list(map(np.mean, np.array_split(glucosePastSec, self.seq_length))))).to(self.device)
+        glucMean = torch.Tensor(np.array(list(map(np.mean, np.array_split(glucoseSec, self.seq_length))))).to(self.device)
         
         # append the glucose values to the sequence
         sample_list.append(glucPastMean)

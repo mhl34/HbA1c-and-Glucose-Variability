@@ -25,7 +25,6 @@ class Conv1DGeneticModel(nn.Module):
     
     def forward(self, x):
         x = torch.tensor(x.clone().detach().requires_grad_(True), dtype=self.conv1.weight.dtype)
-        print(f"model dtype: {self.conv1.weight.dtype}")
         out = F.relu(self.conv1(x))
         out = F.relu(self.conv2(out))
         out = F.relu(self.conv3(out))

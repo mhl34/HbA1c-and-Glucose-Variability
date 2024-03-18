@@ -22,7 +22,7 @@ from utils.GeneticDataset import GeneticDataset
 def model_chooser(modelType, samples):
     pass
 
-def train(samples, model, featMetricList, main_dir, dtype = torch.float, seq_length = 28, normalize = False, batch_size = 32, num_epochs = 20):
+def train(samples, model, featMetricList, main_dir, dtype = torch.float64, seq_length = 28, normalize = False, batch_size = 32, num_epochs = 20, device = "cpu"):
     print("============================")
     print("Training...")
     print("============================")
@@ -39,7 +39,7 @@ def train(samples, model, featMetricList, main_dir, dtype = torch.float, seq_len
 
     hba1c = dataProcessor.hba1c(samples)
 
-    train_dataset = GeneticDataset(samples, glucoseData, edaData, hrData, tempData, accData, hba1c, featMetricList, dtype = dtype, seq_length = seq_length, normalize = normalize)
+    train_dataset = GeneticDataset(samples, glucoseData, edaData, hrData, tempData, accData, hba1c, featMetricList, dtype = dtype, seq_length = seq_length, normalize = normalize, device = device)
     # returns eda, hr, temp, then hba1c
     train_dataloader = DataLoader(train_dataset, batch_size = batch_size, shuffle = True)
 
@@ -101,7 +101,7 @@ def train(samples, model, featMetricList, main_dir, dtype = torch.float, seq_len
             optimizer.step()
 
             lossLst.append(loss.item())
-            # accLst.append(1 - self.mape(output, target))
+            accLst.append(1 - mape(output, target))
             # persAccList.append(self.persAcc(output, target))
         scheduler.step()
 
@@ -118,7 +118,7 @@ def train(samples, model, featMetricList, main_dir, dtype = torch.float, seq_len
         
 
 
-def evaluate(samples, model, featMetricList, main_dir, dtype = torch.float, seq_length = 28, normalize = False, batch_size = 32, num_epochs = 20):
+def evaluate(samples, model, featMetricList, main_dir, dtype = torch.float64, seq_length = 28, normalize = False, batch_size = 32, num_epochs = 20, device = "cpu"):
     print("============================")
     print("Evaluating...")
     print("============================")
@@ -141,7 +141,7 @@ def evaluate(samples, model, featMetricList, main_dir, dtype = torch.float, seq_
 
     hba1c = dataProcessor.hba1c(samples)
 
-    val_dataset = GeneticDataset(samples, glucoseData, edaData, hrData, tempData, accData, hba1c, featMetricList, dtype = dtype, seq_length = seq_length, normalize = normalize)
+    val_dataset = GeneticDataset(samples, glucoseData, edaData, hrData, tempData, accData, hba1c, featMetricList, dtype = dtype, seq_length = seq_length, normalize = normalize, device = device)
     # returns eda, hr, temp, then hba1c
     val_dataloader = DataLoader(val_dataset, batch_size = batch_size, shuffle = True)
 
@@ -156,7 +156,7 @@ def evaluate(samples, model, featMetricList, main_dir, dtype = torch.float, seq_
             accLst = []
             # persAccList = []
 
-            len_dataloader = len(val_dataloader)
+            # len_dataloader = len(val_dataloader)
             
             # sample, edaMean, hrMean, tempMean, accMean, glucPastMean, glucMean
 
@@ -190,7 +190,7 @@ def evaluate(samples, model, featMetricList, main_dir, dtype = torch.float, seq_
                 loss = criterion(output, target)
 
                 lossLst.append(loss.item())
-                # accLst.append(1 - self.mape(output, target))
+                accLst.append(1 - mape(output, target))
                 # persAccList.append(self.persAcc(output, glucStats))
 
             print(f"epoch {epoch} training loss: {sum(lossLst)/len(lossLst)} training accuracy: {sum(accLst)/len(accLst)}")
@@ -201,3 +201,6 @@ def evaluate(samples, model, featMetricList, main_dir, dtype = torch.float, seq_
             for outVal, targetVal in zip(output[-1][:3], target[-1][:3]):
                 print(f"output: {outVal.item()}, target: {targetVal.item()}, difference: {outVal.item() - targetVal.item()}")
     return lossLst[-1]
+
+def mape(pred, target):
+    return (torch.mean(torch.div(torch.abs(target - pred), torch.abs(target)))).item()

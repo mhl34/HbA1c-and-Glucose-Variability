@@ -30,6 +30,7 @@ class GeneticAlgorithm:
         
         # os parameters
         self.main_dir = "/Users/matthewlee/Matthew/Work/DunnLab/big-ideas-lab-glycemic-variability-and-wearable-device-data-1.1.0/"
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
         
     # function: runs the genetic algorithm procedure
     # input: onemax, num_bits (number of bits), num_iter (number of iterations to go through), num_pop (number of animals in a population), rate_cross (rate of crossover), rate_mut (rate of mutation)
@@ -75,9 +76,9 @@ class GeneticAlgorithm:
     # output: the return value of the model accuracy
     def objective_function(self, x):
         num_features = sum(x)
-        model = Conv1DGeneticModel(num_features = num_features, dropout_p = self.dropout_p, normalize = False, seq_len = self.seq_len, dtype = self.dtype)
-        train(samples = self.trainSamples, model = model, featMetricList = x, main_dir = self.main_dir, dtype = self.dtype)
-        loss_val = evaluate(samples = self.valSamples, model = model, featMetricList = x, main_dir = self.main_dir, dtype = self.dtype)
+        model = Conv1DGeneticModel(num_features = num_features, dropout_p = self.dropout_p, normalize = False, seq_len = self.seq_len, dtype = self.dtype).to(self.device)
+        train(samples = self.trainSamples, model = model, featMetricList = x, main_dir = self.main_dir, dtype = self.dtype, device = self.device)
+        loss_val = evaluate(samples = self.valSamples, model = model, featMetricList = x, main_dir = self.main_dir, dtype = self.dtype, device = self.device)
         return loss_val
     
     # function: selection from the population
