@@ -23,9 +23,9 @@ def model_chooser(modelType, samples):
     pass
 
 def train(samples, model, featMetricList, main_dir, dtype = torch.float64, seq_length = 28, normalize = False, batch_size = 32, num_epochs = 20, device = "cpu"):
-    print("============================")
-    print("Training...")
-    print("============================")
+    print("============================", flush=True)
+    print("Training...", flush=True)
+    print("============================", flush=True)
     model.train()
 
     # load in classes
@@ -105,7 +105,7 @@ def train(samples, model, featMetricList, main_dir, dtype = torch.float64, seq_l
             # persAccList.append(self.persAcc(output, target))
         scheduler.step()
 
-        print(f"epoch {epoch + 1} training loss: {sum(lossLst)/len(lossLst)} learning rate: {scheduler.get_last_lr()} training accuracy: {sum(accLst)/len(accLst)}")
+        print(f"epoch {epoch + 1} training loss: {sum(lossLst)/len(lossLst)} learning rate: {scheduler.get_last_lr()} training accuracy: {sum(accLst)/len(accLst)}", flush=True)
         
         # verify shape
         # print(output.shape, target.shape)
@@ -113,15 +113,15 @@ def train(samples, model, featMetricList, main_dir, dtype = torch.float64, seq_l
         # example output with the epoch
 
         for outVal, targetVal in zip(output[-1][:3], target[-1][:3]):
-            print(f"output: {outVal.item()}, target: {targetVal.item()}, difference: {outVal.item() - targetVal.item()}")
+            print(f"output: {outVal.item()}, target: {targetVal.item()}, difference: {outVal.item() - targetVal.item()}", flush=True)
     
         
 
 
 def evaluate(samples, model, featMetricList, main_dir, dtype = torch.float64, seq_length = 28, normalize = False, batch_size = 32, num_epochs = 20, device = "cpu"):
-    print("============================")
-    print("Evaluating...")
-    print("============================")
+    print("============================", flush=True)
+    print("Evaluating...", flush=True)
+    print("============================", flush=True)
     model.eval()
 
     # drop auxiliary networks
@@ -193,13 +193,13 @@ def evaluate(samples, model, featMetricList, main_dir, dtype = torch.float64, se
                 accLst.append(1 - mape(output, target))
                 # persAccList.append(self.persAcc(output, glucStats))
 
-            print(f"epoch {epoch} training loss: {sum(lossLst)/len(lossLst)} training accuracy: {sum(accLst)/len(accLst)}")
+            print(f"epoch {epoch} training loss: {sum(lossLst)/len(lossLst)} training accuracy: {sum(accLst)/len(accLst)}", flush=True)
 
             # print(f"pers category accuracy: {sum(persAccList)/len(persAccList)}")
 
             # example output with the final epoch
             for outVal, targetVal in zip(output[-1][:3], target[-1][:3]):
-                print(f"output: {outVal.item()}, target: {targetVal.item()}, difference: {outVal.item() - targetVal.item()}")
+                print(f"output: {outVal.item()}, target: {targetVal.item()}, difference: {outVal.item() - targetVal.item()}", flush=True)
     return lossLst[-1]
 
 def mape(pred, target):

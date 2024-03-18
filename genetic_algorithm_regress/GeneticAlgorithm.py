@@ -5,6 +5,7 @@ from utils.DataProcessor import DataProcessor
 from utils.GeneticDataset import GeneticDataset
 from utils.pp5 import pp5
 import asyncio
+import multiprocessing
 import torch
 from utils.procedures import train, evaluate, model_chooser
 
@@ -33,13 +34,6 @@ class GeneticAlgorithm:
         # self.main_dir = "/home/jovyan/work/physionet.org/files/big-ideas-glycemic-wearable/1.0.0/"
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         print(f"device: {self.device}")
-        
-    async def run_genetic_algorithm(self, pop):
-        # List to store coroutines for objective function evaluations
-        coroutines = [self.objective_function(c) for c in pop]
-        # Run coroutines concurrently using asyncio.gather()
-        scores = await asyncio.gather(*coroutines)
-        return scores
 
     def genetic_algorithm(self, num_bits, num_iter, num_pop, rate_cross, rate_mut):
         # Initialize the population
@@ -47,13 +41,12 @@ class GeneticAlgorithm:
         # Initialize the best and best scores
         best, best_score = 0, self.objective_function(pop[0])
         
-        # Create event loop
-        loop = asyncio.get_event_loop()
+        pool = multiprocessing.Pool()
         
         # Iterate for the number of generations specified
         for _ in range(num_iter):
             # Get scores concurrently
-            scores = loop.run_until_complete(self.run_genetic_algorithm(pop))
+            scores = pool.map(self.objective_function, pop)
             # iterate through the population
             for i in range(num_pop):
                 # if the score is better than replace best by best score and the individual that scored the best
@@ -73,6 +66,10 @@ class GeneticAlgorithm:
                     # store for next generation
                     children.append(child)
             pop = children
+        
+        # Close the pool to release resources
+        pool.close()
+        
         return best, best_score
     
     # function: get initial population of features to iterate through
