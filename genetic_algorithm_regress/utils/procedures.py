@@ -43,7 +43,7 @@ def train(samples, model, featMetricList, main_dir, dtype = torch.float, seq_len
     # returns eda, hr, temp, then hba1c
     train_dataloader = DataLoader(train_dataset, batch_size = batch_size, shuffle = True)
 
-    criterion = Loss()
+    criterion = Loss(dtype)
     optimizer = optim.Adam(model.parameters(), lr = 1e-3, weight_decay = 1e-8)
     # optimizer = optim.SGD(model.parameters(), lr = 1e-6, momentum = 0.5, weight_decay = 1e-8)
     # scheduler = StepLR(optimizer, step_size=int(self.num_epochs/5), gamma=0.1)
@@ -145,7 +145,7 @@ def evaluate(samples, model, featMetricList, main_dir, dtype = torch.float, seq_
     # returns eda, hr, temp, then hba1c
     val_dataloader = DataLoader(val_dataset, batch_size = batch_size, shuffle = True)
 
-    criterion = Loss()
+    criterion = Loss(dtype)
 
     with torch.no_grad():
         for epoch in range(num_epochs):

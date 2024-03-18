@@ -5,6 +5,7 @@ from utils.DataProcessor import DataProcessor
 from utils.GeneticDataset import GeneticDataset
 from utils.pp5 import pp5
 import asyncio
+import torch
 from utils.procedures import train, evaluate, model_chooser
 
 class GeneticAlgorithm:
@@ -25,6 +26,7 @@ class GeneticAlgorithm:
         self.dropout_p = 0.5
         self.normalize = False
         self.seq_len = 28
+        self.dtype = torch.float64
         
         # os parameters
         self.main_dir = "/Users/matthewlee/Matthew/Work/DunnLab/big-ideas-lab-glycemic-variability-and-wearable-device-data-1.1.0/"
@@ -73,9 +75,9 @@ class GeneticAlgorithm:
     # output: the return value of the model accuracy
     def objective_function(self, x):
         num_features = sum(x)
-        model = Conv1DGeneticModel(num_features = num_features, dropout_p = self.dropout_p, normalize = False, seq_len = self.seq_len)
-        train(samples = self.trainSamples, model = model, featMetricList = x, main_dir = self.main_dir)
-        loss_val = evaluate(samples = self.valSamples, model = model, featMetricList = x, main_dir = self.main_dir)
+        model = Conv1DGeneticModel(num_features = num_features, dropout_p = self.dropout_p, normalize = False, seq_len = self.seq_len, dtype = self.dtype)
+        train(samples = self.trainSamples, model = model, featMetricList = x, main_dir = self.main_dir, dtype = self.dtype)
+        loss_val = evaluate(samples = self.valSamples, model = model, featMetricList = x, main_dir = self.main_dir, dtype = self.dtype)
         return loss_val
     
     # function: selection from the population
