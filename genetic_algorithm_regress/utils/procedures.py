@@ -43,7 +43,7 @@ def train(samples, model, featMetricList, main_dir, dtype = torch.float64, seq_l
     # returns eda, hr, temp, then hba1c
     train_dataloader = DataLoader(train_dataset, batch_size = batch_size, shuffle = True)
 
-    criterion = Loss(dtype)
+    criterion = Loss(dtype).to(device)
     optimizer = optim.Adam(model.parameters(), lr = 1e-3, weight_decay = 1e-8)
     # optimizer = optim.SGD(model.parameters(), lr = 1e-6, momentum = 0.5, weight_decay = 1e-8)
     # scheduler = StepLR(optimizer, step_size=int(self.num_epochs/5), gamma=0.1)
@@ -67,7 +67,7 @@ def train(samples, model, featMetricList, main_dir, dtype = torch.float64, seq_l
             # stack the inputs and feed as 3 channel input
             input = torch.stack(features).permute((1,0,2)).to(dtype)
 
-            target = glucPres
+            target = glucPres.to(dtype)
 
             # zero index the dann target
             # dannTarget = torch.tensor([int(i) - 1 for i in sample]).to(torch.long)
@@ -101,7 +101,7 @@ def train(samples, model, featMetricList, main_dir, dtype = torch.float64, seq_l
             optimizer.step()
 
             lossLst.append(loss.item())
-            accLst.append(1 - mape(output, target))
+            # accLst.append(1 - self.mape(output, target))
             # persAccList.append(self.persAcc(output, target))
         scheduler.step()
 
@@ -145,7 +145,7 @@ def evaluate(samples, model, featMetricList, main_dir, dtype = torch.float64, se
     # returns eda, hr, temp, then hba1c
     val_dataloader = DataLoader(val_dataset, batch_size = batch_size, shuffle = True)
 
-    criterion = Loss(dtype)
+    criterion = Loss(dtype).to(device)
 
     with torch.no_grad():
         for epoch in range(num_epochs):
@@ -156,7 +156,7 @@ def evaluate(samples, model, featMetricList, main_dir, dtype = torch.float64, se
             accLst = []
             # persAccList = []
 
-            # len_dataloader = len(val_dataloader)
+            len_dataloader = len(val_dataloader)
             
             # sample, edaMean, hrMean, tempMean, accMean, glucPastMean, glucMean
 
@@ -166,7 +166,7 @@ def evaluate(samples, model, featMetricList, main_dir, dtype = torch.float64, se
                 # stack the inputs and feed as 3 channel input
                 input = torch.stack(features).permute((1,0,2)).to(dtype)
 
-                target = glucPres
+                target = glucPres.to(dtype)
 
                 # alpha value for dann model
                 # p = float(batch_idx + epoch * len_dataloader) / (self.num_epochs * len_dataloader)
@@ -190,7 +190,7 @@ def evaluate(samples, model, featMetricList, main_dir, dtype = torch.float64, se
                 loss = criterion(output, target)
 
                 lossLst.append(loss.item())
-                accLst.append(1 - mape(output, target))
+                # accLst.append(1 - self.mape(output, target))
                 # persAccList.append(self.persAcc(output, glucStats))
 
             print(f"epoch {epoch} training loss: {sum(lossLst)/len(lossLst)} training accuracy: {sum(accLst)/len(accLst)}")
@@ -201,6 +201,3 @@ def evaluate(samples, model, featMetricList, main_dir, dtype = torch.float64, se
             for outVal, targetVal in zip(output[-1][:3], target[-1][:3]):
                 print(f"output: {outVal.item()}, target: {targetVal.item()}, difference: {outVal.item() - targetVal.item()}")
     return lossLst[-1]
-
-def mape(pred, target):
-    return (torch.mean(torch.div(torch.abs(target - pred), torch.abs(target)))).item()
