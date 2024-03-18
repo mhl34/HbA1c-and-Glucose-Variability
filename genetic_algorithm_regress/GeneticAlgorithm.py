@@ -11,6 +11,9 @@ from utils.procedures import train, evaluate, model_chooser
 
 class GeneticAlgorithm:
     def __init__(self):
+        # for CUDA multithreading
+        torch.multiprocessing.set_start_method('spawn')
+
         # samples
         self.samples = [str(i).zfill(3) for i in range(1, 17)]
         self.trainSamples = self.samples[:-5]
