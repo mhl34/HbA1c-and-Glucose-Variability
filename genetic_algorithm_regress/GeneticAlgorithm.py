@@ -1,29 +1,54 @@
 import numpy as np
 import pandas as pd
 from models.Conv1DGeneticModel import Conv1DGeneticModel
+from utils.DataProcessor import DataProcessor
+from utils.GeneticDataset import GeneticDataset
+from utils.pp5 import pp5
 import asyncio
-import random
-from procedures import train, evaluate, model_chooser
+import torch
+from utils.procedures import train, evaluate, model_chooser
 
 class GeneticAlgorithm:
     def __init__(self):
+        # samples
+        self.samples = [str(i).zfill(3) for i in range(1, 17)]
+        self.trainSamples = self.samples[:-5]
+        self.valSamples = self.samples[-5:]
+
+        # genetic training regiment
         self.num_iter = 100
-        self.num_bits = 20
+        self.num_bits = 24
         self.num_pop = 100
         self.rate_cross = 0.9
         self.rate_mut = 1.0 / float(self.num_bits)
+
+        # model parameters
+        self.dropout_p = 0.5
+        self.normalize = False
+        self.seq_len = 28
+        self.dtype = torch.float64
+        
+        # os parameters
+        self.main_dir = "/Users/matthewlee/Matthew/Work/DunnLab/big-ideas-lab-glycemic-variability-and-wearable-device-data-1.1.0/"
         
     # function: runs the genetic algorithm procedure
     # input: onemax, num_bits (number of bits), num_iter (number of iterations to go through), num_pop (number of animals in a population), rate_cross (rate of crossover), rate_mut (rate of mutation)
     # output: 
     def genetic_algorithm(self, num_bits, num_iter, num_pop, rate_cross, rate_mut):
+        # initialize the population
         pop = self.initial_population(num_bits = num_bits, num_pop = num_pop)
+        # initialize the best and best scores
         best, best_score = 0, self.objective_function(pop[0])
-        for gen in range(num_iter):
+        # iterate for the number of generations specified
+        for _ in range(num_iter):
+            # score them based on the objective function (MSE loss for the models)
             scores = [self.objective_function(c) for c in pop]
+            # iterate through the population
             for i in range(num_pop):
+                # if the score is better than replace best by best score and the individual that scored the best
                 if scores[i] > best_score:
                     best, best_score = pop[i], scores[i]
+            # select based on the scores
             selected = [self.selection(pop, scores) for _ in range(self.num_pop)]
             # create the next generation
             children = []
@@ -43,20 +68,24 @@ class GeneticAlgorithm:
     # input: num_bits (number of bits), num_pop (number of animals in a population)
     # output: the population in lists
     def initial_population(self, num_bits, num_pop):
-        return [random.randint(0, 2, num_bits).tolist() for _ in range(num_pop)]
+        return [np.random.randint(low = 0, high = 2, size = num_bits).tolist() for _ in range(num_pop)]
         
     # function: objective function (performing the machine learning model
     # input: x
     # output: the return value of the model accuracy
     def objective_function(self, x):
-        pass
+        num_features = sum(x)
+        model = Conv1DGeneticModel(num_features = num_features, dropout_p = self.dropout_p, normalize = False, seq_len = self.seq_len, dtype = self.dtype)
+        train(samples = self.trainSamples, model = model, featMetricList = x, main_dir = self.main_dir, dtype = self.dtype)
+        loss_val = evaluate(samples = self.valSamples, model = model, featMetricList = x, main_dir = self.main_dir, dtype = self.dtype)
+        return loss_val
     
     # function: selection from the population
     # input: pop (population), scores (from the objective function), k
     # output: return the population of champions from the selection
     def selection(self, pop, scores, k = 3):
-        selection_idx = random.randint(len(pop))
-        for idx in random.randint(0, len(pop), k-1):
+        selection_idx = np.random.randint(len(pop))
+        for idx in np.random.randint(low = 0, high = len(pop), size = k-1):
             if scores[idx] < scores[selection_idx]:
                 selection_idx = idx
         return pop[selection_idx]
@@ -67,10 +96,12 @@ class GeneticAlgorithm:
     def crossover(self, parent_1, parent_2, rate_cross):
         parent_1_copy = parent_1.copy()
         parent_2_copy = parent_2.copy()
+        child_1 = parent_1.copy()
+        child_2 = parent_2.copy()
         # check for recombination
-        if random.random() < rate_cross:
+        if np.random.random() < rate_cross:
             # select crossover point that is not on the end of the string
-            pt = random.randint(1, len(parent_1)-2)
+            pt = np.random.randint(low = 1, high = len(parent_1)-2)
             # perform crossover
             child_1 = parent_1_copy[:pt] + parent_2_copy[pt:]
             child_2 = parent_2_copy[:pt] + parent_1_copy[pt:]
@@ -80,23 +111,16 @@ class GeneticAlgorithm:
     # function: performs a mutation
     # input: bitstring (bitstring of features selected), r_mut (rate of mutation)
     # output: NA
-    def mutation(bitstring, r_mut):
+    def mutation(self, bitstring, r_mut):
         for idx in range(len(bitstring)):
-            if random.random() < r_mut:
+            if np.random.random() < r_mut:
                 bitstring[idx] = 1 - bitstring[idx]
     
     # function: run the algorithm
     # input: N/A
     # output: Analysis
     def run(self):
-        pass
-    
-    # function: train the machine learning models with the various parameters
-    async def train(self):
-        pass
-    
-    async def evaluate(self):
-        pass
+        print(self.genetic_algorithm(self.num_bits, self.num_iter, self.num_pop, self.rate_cross, self.rate_mut))
     
     
 if __name__ == "__main__":
