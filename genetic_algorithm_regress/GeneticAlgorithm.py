@@ -29,7 +29,7 @@ class GeneticAlgorithm:
         # model parameters
         self.dropout_p = 0.5
         self.normalize = False
-        self.seq_len = 28
+        self.seq_len = 12
         self.dtype = torch.float64
         
         # os parameters
