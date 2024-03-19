@@ -28,7 +28,6 @@ class Conv1DGeneticModel(nn.Module):
         out = F.relu(self.conv1(x))
         out = F.relu(self.conv2(out))
         out = F.relu(self.conv3(out))
-        print(out.shape)
         out = out.view(out.size(0), -1)
         out = F.relu(self.fc1(self.dropout(out)))
         out = F.relu(self.fc2(self.dropout(out)))

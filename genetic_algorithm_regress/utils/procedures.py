@@ -22,7 +22,7 @@ from utils.GeneticDataset import GeneticDataset
 def model_chooser(modelType, samples):
     pass
 
-def train(samples, model, featMetricList, main_dir, dtype = torch.float64, seq_length = 28, normalize = False, batch_size = 32, num_epochs = 20, device = "cpu"):
+def train(samples, model, featMetricList, main_dir, dtype = torch.float64, seq_len = 28, normalize = False, batch_size = 32, num_epochs = 20, device = "cpu"):
     print("============================", flush=True)
     print("Training...", flush=True)
     print("============================", flush=True)
@@ -39,7 +39,7 @@ def train(samples, model, featMetricList, main_dir, dtype = torch.float64, seq_l
 
     hba1c = dataProcessor.hba1c(samples)
 
-    train_dataset = GeneticDataset(samples, glucoseData, edaData, hrData, tempData, accData, hba1c, featMetricList, dtype = dtype, seq_length = seq_length, normalize = normalize, device = device)
+    train_dataset = GeneticDataset(samples, glucoseData, edaData, hrData, tempData, accData, hba1c, featMetricList, dtype = dtype, seq_length = seq_len, normalize = normalize, device = device)
     # returns eda, hr, temp, then hba1c
     train_dataloader = DataLoader(train_dataset, batch_size = batch_size, shuffle = True)
 
@@ -118,7 +118,7 @@ def train(samples, model, featMetricList, main_dir, dtype = torch.float64, seq_l
         
 
 
-def evaluate(samples, model, featMetricList, main_dir, dtype = torch.float64, seq_length = 28, normalize = False, batch_size = 32, num_epochs = 20, device = "cpu"):
+def evaluate(samples, model, featMetricList, main_dir, dtype = torch.float64, seq_len = 28, normalize = False, batch_size = 32, num_epochs = 20, device = "cpu"):
     print("============================", flush=True)
     print("Evaluating...", flush=True)
     print("============================", flush=True)
@@ -141,7 +141,7 @@ def evaluate(samples, model, featMetricList, main_dir, dtype = torch.float64, se
 
     hba1c = dataProcessor.hba1c(samples)
 
-    val_dataset = GeneticDataset(samples, glucoseData, edaData, hrData, tempData, accData, hba1c, featMetricList, dtype = dtype, seq_length = seq_length, normalize = normalize, device = device)
+    val_dataset = GeneticDataset(samples, glucoseData, edaData, hrData, tempData, accData, hba1c, featMetricList, dtype = dtype, seq_length = seq_len, normalize = normalize, device = device)
     # returns eda, hr, temp, then hba1c
     val_dataloader = DataLoader(val_dataset, batch_size = batch_size, shuffle = True)
 
