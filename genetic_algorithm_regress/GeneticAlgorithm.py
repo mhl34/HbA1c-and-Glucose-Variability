@@ -86,7 +86,8 @@ class GeneticAlgorithm:
     # output: the return value of the model accuracy
     def objective_function(self, x):
         num_features = sum(x)
-        model = Conv1DGeneticModel(num_features = num_features, dropout_p = self.dropout_p, normalize = False, seq_len = self.seq_len, dtype = self.dtype).to(self.device)
+        model = Conv1DGeneticModel(num_features = num_features, dropout_p = self.dropout_p, normalize = False, seq_len = self.seq_len, dtype = self.dtype)
+        model = model.to(self.device)
         train(samples = self.trainSamples, model = model, featMetricList = x, main_dir = self.main_dir, dtype = self.dtype, device = self.device, seq_len = self.seq_len)
         loss_val = evaluate(samples = self.valSamples, model = model, featMetricList = x, main_dir = self.main_dir, dtype = self.dtype, device = self.device, seq_len = self.seq_len)
         return loss_val

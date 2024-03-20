@@ -26,25 +26,26 @@ from torch.optim.lr_scheduler import StepLR, CosineAnnealingLR
 from Loss import Loss
 
 def model_chooser(self, modelType, samples):
-        if modelType == "conv1d":
-            print(f"model {modelType}")
-            return Conv1DModel(self.num_features, self.dropout_p, seq_len = self.seq_length)
-        elif modelType == "lstm":
-            print(f"model {modelType}")
-            return LstmModel(input_size = self.seq_length, hidden_size = 100, num_layers = 8, batch_first = True, dropout = self.dropout_p, dtype = self.dtype)
-        elif modelType == "transformer":
-            print(f"model {modelType}")
-            return TransformerModel(num_features = 1024, num_head = 256, seq_length = self.seq_length, dropout_p = self.dropout_p, norm_first = True, dtype = self.dtype)
-        elif modelType == "dann":
-            print(f"model {modelType}")
-            return DannModel(self.modelType, samples, dropout = self.dropout_p, seq_len = self.seq_length)
-        elif modelType == "ssl":
-            print(f"model {modelType}")
-            return SslModel(mask_len = 7, dropout = self.dropout_p, seq_len = self.seq_length)
-        elif modelType == "unet":
-            print(f"model {modelType}")
-            return UNet(self.num_features, normalize = False, seq_len = self.seq_length)
-        return None
+    pass
+        # if modelType == "conv1d":
+        #     print(f"model {modelType}")
+        #     return Conv1DGeneticModel(num_features = num_features, dropout_p = self.dropout_p, normalize = False, seq_len = self.seq_len, dtype = self.dtype).to(self.device)
+        # elif modelType == "lstm":
+        #     print(f"model {modelType}")
+        #     return LstmModel(num_features, seq_len = self.seq_length, hidden_size = 100, num_layers = 8, batch_first = True, dropout = self.dropout_p, dtype = self.dtype)
+        # elif modelType == "transformer":
+        #     print(f"model {modelType}")
+        #     return TransformerModel(num_features = 1024, num_head = 256, seq_length = self.seq_length, dropout_p = self.dropout_p, norm_first = True, dtype = self.dtype)
+        # elif modelType == "dann":
+        #     print(f"model {modelType}")
+        #     return DannModel(self.modelType, samples, dropout = self.dropout_p, seq_len = self.seq_length)
+        # elif modelType == "ssl":
+        #     print(f"model {modelType}")
+        #     return SslModel(mask_len = 7, dropout = self.dropout_p, seq_len = self.seq_length)
+        # elif modelType == "unet":
+        #     print(f"model {modelType}")
+        #     return UNet(self.num_features, normalize = False, seq_len = self.seq_length)
+        # return None
 
 def train(self, samples, model):
     print(self.device)
