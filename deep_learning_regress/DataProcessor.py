@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+from datetime import datetime
 
 class DataProcessor:
     def __init__(self, mainDir = ""):
@@ -47,6 +48,15 @@ class DataProcessor:
                 lst_y = pd.to_numeric(df[' acc_y']).to_numpy()
                 lst_z = pd.to_numeric(df[' acc_z']).to_numpy()
                 data[sample] = np.sqrt(np.sum([np.square(lst_x), np.square(lst_y), np.square(lst_z)], axis=0))
+        elif fileType == "food":
+            column_names = ["date", "time", "time_begin", "time_end", "logged_food", "amount", "unit", "searched_food", "calorie", "total_carb", "dietary_fiber", "sugar", "protein", "total_fat"]
+            for sample in samples:
+                df = pd.read_csv(self.mainDir + sample + "/" + self.foodLogFormat.format(sample), sep =',', names = column_names)
+            sugar_array = df['sugar'].to_numpy()[1:]
+            carb_array = df['carb'].to_numpy()[1:]
+            date_array = df['date'].to_numpy()[1:]
+            begin_array = df['time_begin'].to_numpy()[1:]
+            end_array = df['time_end'].to_numpy()[1:]
         else:
             for sample in samples:
                 data[sample] = np.array([])

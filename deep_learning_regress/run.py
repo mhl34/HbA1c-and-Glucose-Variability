@@ -51,7 +51,7 @@ class runModel:
     def modelChooser(self, modelType, samples):
         if modelType == "conv1d":
             print(f"model {modelType}")
-            return Conv1DModel(self.num_features, self.dropout_p, seq_len = self.seq_length)
+            return Conv1DModel(self.num_features, dropout_p = self.dropout_p, seq_len = self.seq_length)
         elif modelType == "lstm":
             print(f"model {modelType}")
             return LstmModel(input_size = self.seq_length, hidden_size = 100, num_layers = 8, batch_first = True, dropout = self.dropout_p, dtype = self.dtype)
@@ -78,6 +78,7 @@ class runModel:
         # load in classes
         dataProcessor = DataProcessor(self.mainDir)
 
+        # foodData = dataProcessor.loadData(samples, "food")
         glucoseData = dataProcessor.loadData(samples, "dexcom")
         edaData = dataProcessor.loadData(samples, "eda")
         tempData = dataProcessor.loadData(samples, "temp")
@@ -251,6 +252,6 @@ class runModel:
         self.evaluate(valSamples, model)
 
 if __name__ == "__main__":
-    mainDir = "/home/jovyan/work/physionet.org/files/big-ideas-glycemic-wearable/1.0.0/"
+    mainDir = "/media/nvme1/expansion/glycemic_health_data/physionet.org/files/big-ideas-glycemic-wearable/1.1.2/"
     obj = runModel(mainDir)
     obj.run()
