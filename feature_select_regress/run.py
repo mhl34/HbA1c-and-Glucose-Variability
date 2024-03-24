@@ -14,14 +14,15 @@ from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 import torch.nn.functional as F
 from DataProcessor import DataProcessor
-from glycemicDataset import glycemicDataset
+# from glycemicDataset import glycemicDataset
+from FeatureDataset import FeatureDataset
 from pp5 import pp5
-from Conv1DModel import Conv1DModel
-from LstmModel import LstmModel
-from TransformerModel import TransformerModel
-from DannModel import DannModel
-from SslModel import SslModel
-from UNet import UNet
+from models.Conv1DModel import Conv1DModel
+from models.LstmModel import LstmModel
+from models.TransformerModel import TransformerModel
+from models.DannModel import DannModel
+from models.SslModel import SslModel
+from models.UNet import UNet
 from torch.optim.lr_scheduler import StepLR, CosineAnnealingLR
 from Loss import Loss
 
