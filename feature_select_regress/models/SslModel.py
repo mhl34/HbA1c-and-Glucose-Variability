@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F 
 import random
-from ChannelFC import ChannelFC
+from models.ChannelFC import ChannelFC
 
 class SslModel(nn.Module):
     def __init__(self, mask_len, dropout = 0, seq_len = 28):

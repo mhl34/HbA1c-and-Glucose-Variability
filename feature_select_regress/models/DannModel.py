@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from GradientReversalLayer import GradientReversalLayer
+from models.GradientReversalLayer import GradientReversalLayer
 
 # input: representations, which depend on the type of model
 # output: guess on domain (Person as Domain)

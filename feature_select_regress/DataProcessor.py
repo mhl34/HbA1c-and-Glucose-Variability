@@ -73,10 +73,9 @@ class DataProcessor:
     
     def processFood(self, df):
         sugar_array = df['sugar'].to_numpy()[1:]
-        carb_array = df['carb'].to_numpy()[1:]
-        date_array = df['date'].to_numpy()[1:]
+        carb_array = df['total_carb'].to_numpy()[1:]
+        # base it off of time_begin
         begin_array = df['time_begin'].to_numpy()[1:]
-        end_array = df['time_end'].to_numpy()[1:]
         print(sugar_array)
     
     def hba1c(self, samples):

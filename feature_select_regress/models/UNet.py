@@ -1,6 +1,6 @@
-from UNetDecoder import UNetDecoder
-from UNetEncoder import UNetEncoder
-from ChannelFC import ChannelFC
+from models.UNetDecoder import UNetDecoder
+from models.UNetEncoder import UNetEncoder
+from models.ChannelFC import ChannelFC
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
