@@ -143,6 +143,7 @@ class runModel:
 
                 optimizer.zero_grad()
                 loss.backward(retain_graph = True)
+                nn.utils.clip_grad_norm_(model.parameters(), max_norm = 1)
                 optimizer.step()
 
                 lossLst.append(loss.item())
