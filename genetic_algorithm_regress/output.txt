@@ -1,0 +1,22 @@
+device: cpu
+[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+============================
+Training...
+============================
+{'eda': ['max', 'min', 'mean', 'q1', 'q3', 'skew'], 'hr': ['max', 'min', 'mean', 'q1', 'q3', 'skew'], 'temp': ['max', 'min', 'mean', 'q1', 'q3', 'skew'], 'acc': ['max', 'min', 'mean', 'q1', 'q3', 'skew']}
+epoch 1 training loss: 2697.1113384723876 learning rate: [0.0009938441702975688] training accuracy: 0.6480671423704994
+output: 102.2388184300333, target: 114.0, difference: -11.761181569966695
+output: 83.54665050962228, target: 110.0, difference: -26.453349490377718
+output: 114.64588558693276, target: 110.0, difference: 4.6458855869327635
+epoch 2 training loss: 1149.0033116720706 learning rate: [0.0009755282581475768] training accuracy: 0.7652800732143797
+output: 95.33984812202374, target: 124.0, difference: -28.66015187797626
+output: 84.77478909717853, target: 117.0, difference: -32.22521090282147
+output: 81.44124136593, target: 111.0, difference: -29.558758634070003
+epoch 3 training loss: 1012.5445672684708 learning rate: [0.0009455032620941839] training accuracy: 0.7823208370981911
+output: 85.81000893632617, target: 106.0, difference: -20.18999106367383
+output: 83.84635655975751, target: 107.0, difference: -23.15364344024249
+output: 83.66483880591342, target: 106.0, difference: -22.33516119408658
+epoch 4 training loss: 919.7626151117217 learning rate: [0.0009045084971874737] training accuracy: 0.7950296036902983
+output: 105.77183126301009, target: 98.0, difference: 7.771831263010085
+output: 102.2214905522714, target: 102.0, difference: 0.2214905522714048
+output: 99.56868931630075, target: 108.0, difference: -8.431310683699252

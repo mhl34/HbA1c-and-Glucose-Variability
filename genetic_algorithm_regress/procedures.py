@@ -19,6 +19,11 @@ from utils.Loss import Loss
 from utils.DataProcessor import DataProcessor
 from utils.GeneticDataset import GeneticDataset
 
+# for reproducibility
+torch.manual_seed(0)
+random.seed(0)
+np.random.seed(0)
+
 def model_chooser(modelType, samples):
     pass
 
