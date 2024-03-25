@@ -6,6 +6,11 @@ import random
 import scipy
 from utils.pp5 import pp5
 
+# for reproducibility
+torch.manual_seed(0)
+random.seed(0)
+np.random.seed(0)
+
 class GeneticDataset(Dataset):
     # max, min, mean, q1, q3, std, skew
     def __init__(self, samples, glucose, eda, hr, temp, acc, hba1c, featMetricList, dtype = torch.float64, seq_length = 28, normalize = False, device = "cpu"):
@@ -120,6 +125,7 @@ class GeneticDataset(Dataset):
                 idx =  feature_type * 6 + feature_calc
                 if self.featMetricList[idx]:
                     feat_metric_dict[feature_type_dict[feature_type]].append(feature_select_dict[feature_calc])
+        print(feat_metric_dict)
         return feat_metric_dict
     
     def normalizeFn(self, data, eps = 1e-5):

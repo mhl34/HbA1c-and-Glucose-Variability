@@ -9,6 +9,11 @@ import multiprocessing
 import torch
 from utils.procedures import train, evaluate, model_chooser
 
+# for reproducibility
+torch.manual_seed(0)
+random.seed(0)
+np.random.seed(0)
+
 class GeneticAlgorithm:
     def __init__(self):
         # for CUDA multithreading
@@ -79,7 +84,8 @@ class GeneticAlgorithm:
     # input: num_bits (number of bits), num_pop (number of animals in a population)
     # output: the population in lists
     def initial_population(self, num_bits, num_pop):
-        return [np.random.randint(low = 0, high = 2, size = num_bits).tolist() for _ in range(num_pop)]
+        # return [np.random.randint(low = 0, high = 2, size = num_bits).tolist() for _ in range(num_pop)]
+        return [np.ones(num_bits).astype(int).tolist() for _ in range(num_pop)]
         
     # function: objective function (performing the machine learning model
     # input: x
