@@ -83,7 +83,7 @@ class FeatureDataset(Dataset):
 
         # normalize if needed
         if self.normalize:
-            return (sample, self.normalizeFn(accMean), self.normalizeFn(sugarMean), self.normalizeFn(carbMean), self.normalizeFn(minMean), self.normalizeFn(hba1cMean) self.normalizeFn(glucPastMean), self.normalizeFn(glucMean))
+            return (sample, self.normalizeFn(accMean), self.normalizeFn(sugarMean), self.normalizeFn(carbMean), self.normalizeFn(minMean), self.normalizeFn(hba1cMean), self.normalizeFn(glucPastMean), self.normalizeFn(glucMean))
         
         #return non-normalized outputs
         return (sample, accMean, sugarMean, carbMean, minMean, hba1cMean, glucPastMean, glucMean)

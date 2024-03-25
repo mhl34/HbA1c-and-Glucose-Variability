@@ -130,5 +130,4 @@ class DataProcessor:
             time_array = np.array(list(map(dateParser, df['Timestamp (YYYY-MM-DDThh:mm:ss)'].dropna().to_numpy())))
             min_array = np.array([dt.hour * 60 + dt.minute + dt.second / 60 for dt in time_array])
             data[sample] = min_array
-        print(data)
         return data
