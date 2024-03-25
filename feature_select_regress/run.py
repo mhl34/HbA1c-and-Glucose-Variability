@@ -88,7 +88,9 @@ class runModel:
 
         hba1c = dataProcessor.hba1c(samples)
 
-        train_dataset = FeatureDataset(samples, glucoseData, edaData, hrData, tempData, accData, foodData, hba1c, metric = self.glucMetric, dtype = self.dtype, seq_length = self.seq_length, normalize = self.normalize)
+        minData = dataProcessor.minFromMidnight(samples)
+
+        train_dataset = FeatureDataset(samples, glucoseData, edaData, hrData, tempData, accData, foodData, minData, hba1c, metric = self.glucMetric, dtype = self.dtype, seq_length = self.seq_length, normalize = self.normalize)
         # returns eda, hr, temp, then hba1c
         train_dataloader = DataLoader(train_dataset, batch_size = self.batch_size, shuffle = True)
 
@@ -132,8 +134,6 @@ class runModel:
                 else:
                     modelOut = model(input)
                     mask_output, output = modelOut[0].to(self.dtype), modelOut[1].to(self.dtype).squeeze()
-
-                print(output.shape, target.shape)
 
                 loss = criterion(output, target)
                 if self.modelType == "ssl":

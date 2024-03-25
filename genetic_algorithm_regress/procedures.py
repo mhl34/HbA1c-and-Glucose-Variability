@@ -67,6 +67,8 @@ def train(samples, model, featMetricList, main_dir, dtype = torch.float64, seq_l
             # stack the inputs and feed as 3 channel input
             input = torch.stack(features).permute((1,0,2)).to(dtype)
 
+            print(input)
+
             target = glucPres.to(dtype)
 
             # zero index the dann target

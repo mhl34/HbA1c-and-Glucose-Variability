@@ -6,7 +6,7 @@ import torch
 from utils import createGlucStats
 
 class FeatureDataset(Dataset):
-    def __init__(self, samples, glucose, eda, hr, temp, acc, food, hba1c, metric = "mean", dtype = torch.float64, seq_length = 28, normalize = False):
+    def __init__(self, samples, glucose, eda, hr, temp, acc, food, minutes, hba1c, metric = "mean", dtype = torch.float64, seq_length = 28, normalize = False):
         self.samples = samples
         self.glucose = glucose
         self.eda = eda
@@ -14,6 +14,7 @@ class FeatureDataset(Dataset):
         self.temp = temp
         self.acc = acc
         self.food = food
+        self.minutes = minutes
         self.hba1c = hba1c
         self.seq_length = seq_length
         self.pp5vals = pp5()
@@ -33,6 +34,7 @@ class FeatureDataset(Dataset):
         hrSample = self.hr[sample]
         tempSample = self.temp[sample]
         accSample = self.acc[sample]
+        minSample = self.minutes[sample]
         hba1cSample = self.hba1c[sample]
         
         # get the start indices for different sequences
