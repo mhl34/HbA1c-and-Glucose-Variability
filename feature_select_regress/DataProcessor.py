@@ -118,12 +118,9 @@ class DataProcessor:
         df = pd.read_csv(self.mainDir + "Demographics.txt", sep='\t')
         for sample in samples:
             hba1c = df.loc[df['ID'] == int(sample)]['HbA1c'].item()
-            if hba1c < 5.7:
-                d[sample] = 1
-            elif hba1c < 6.5:
-                d[sample] = 2
-            else:
-                d[sample] = 3
+            dexcom_df = pd.read_csv(self.mainDir + sample + "/" + self.dexcomFormat.format(sample))
+            size = len(dexcom_df)
+            d[sample] = np.ones(size) * hba1c
         return d
 
     def minFromMidnight(self, samples):
