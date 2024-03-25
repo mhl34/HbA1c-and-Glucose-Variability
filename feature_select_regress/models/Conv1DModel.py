@@ -7,7 +7,6 @@ class Conv1DModel(nn.Module):
         super(Conv1DModel, self).__init__()
         self.num_features = num_features
         self.seq_len = seq_len
-        self.num_seqs = 4
         # input: 28 x 4
         # 3 channels for each of the different modalities
         # output: 12 x 8
@@ -20,7 +19,7 @@ class Conv1DModel(nn.Module):
         self.conv3 = nn.Conv1d(in_channels = 16, out_channels = 64, kernel_size = 5, stride = 1)
         self.dropout = nn.Dropout(dropout_p)
         self.fc1 = nn.Linear(64 * (((self.seq_len - 4) // 2) - 2 - 4), 64)
-        self.fc2 = nn.Linear(64, 1)
+        self.fc2 = nn.Linear(64, self.seq_len)
         self.normalize = normalize
     
     def forward(self, x):

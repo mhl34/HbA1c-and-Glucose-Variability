@@ -52,7 +52,7 @@ class runModel:
     def modelChooser(self, modelType, samples):
         if modelType == "conv1d":
             print(f"model {modelType}")
-            return Conv1DModel(self.num_features, dropout_p = self.dropout_p, seq_len = self.seq_length)
+            return Conv1DModel(num_features = self.num_features, dropout_p = self.dropout_p, seq_len = self.seq_length)
         elif modelType == "lstm":
             print(f"model {modelType}")
             return LstmModel(input_size = self.seq_length, hidden_size = 100, num_layers = 8, batch_first = True, dropout = self.dropout_p, dtype = self.dtype)
@@ -80,7 +80,6 @@ class runModel:
         dataProcessor = DataProcessor(self.mainDir)
 
         foodData = dataProcessor.loadData(samples, "food")
-        exit()
         glucoseData = dataProcessor.loadData(samples, "dexcom")
         edaData = dataProcessor.loadData(samples, "eda")
         tempData = dataProcessor.loadData(samples, "temp")
@@ -89,7 +88,7 @@ class runModel:
 
         hba1c = dataProcessor.hba1c(samples)
 
-        train_dataset = glycemicDataset(samples, glucoseData, edaData, hrData, tempData, accData, hba1c, metric = self.glucMetric, dtype = self.dtype, seq_length = self.seq_length, normalize = self.normalize)
+        train_dataset = FeatureDataset(samples, glucoseData, edaData, hrData, tempData, accData, foodData, hba1c, metric = self.glucMetric, dtype = self.dtype, seq_length = self.seq_length, normalize = self.normalize)
         # returns eda, hr, temp, then hba1c
         train_dataloader = DataLoader(train_dataset, batch_size = self.batch_size, shuffle = True)
 
@@ -133,6 +132,8 @@ class runModel:
                 else:
                     modelOut = model(input)
                     mask_output, output = modelOut[0].to(self.dtype), modelOut[1].to(self.dtype).squeeze()
+
+                print(output.shape, target.shape)
 
                 loss = criterion(output, target)
                 if self.modelType == "ssl":

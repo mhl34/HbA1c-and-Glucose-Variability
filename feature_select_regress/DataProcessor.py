@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
-from datetime import datetime
+from datetime import datetime, timedelta
+from utils import dateParser
 
 class DataProcessor:
     def __init__(self, mainDir = ""):
@@ -51,8 +52,9 @@ class DataProcessor:
         elif fileType == "food":
             column_names = ["date", "time", "time_begin", "time_end", "logged_food", "amount", "unit", "searched_food", "calorie", "total_carb", "dietary_fiber", "sugar", "protein", "total_fat"]
             for sample in samples:
-                df = pd.read_csv(self.mainDir + sample + "/" + self.foodLogFormat.format(sample), sep =',', names = column_names)
-                self.processFood(df)
+                food_df = pd.read_csv(self.mainDir + sample + "/" + self.foodLogFormat.format(sample), sep =',', names = column_names)
+                dexcom_df = pd.read_csv(self.mainDir + sample + "/" + self.dexcomFormat.format(sample))
+                data[sample] = self.processFood(food_df, dexcom_df)
         else:
             for sample in samples:
                 data[sample] = np.array([])
@@ -71,12 +73,47 @@ class DataProcessor:
             persDict[key] = [(data[key][i], self.persComp(data[key][i], swData[key][i][0] + swData[key][i][1], swData[key][i][0] - swData[key][i][1])) for i in range(len(data[key]))]
         return persDict
     
-    def processFood(self, df):
-        sugar_array = df['sugar'].to_numpy()[1:]
-        carb_array = df['total_carb'].to_numpy()[1:]
+    def processFood(self, food_df, dexcom_df):
+        sugar_array = food_df['sugar'].to_numpy()[1:]
+        carb_array = food_df['total_carb'].to_numpy()[1:]
         # base it off of time_begin
-        begin_array = df['time_begin'].to_numpy()[1:]
-        print(sugar_array)
+        food_time_array = np.array(list(map(dateParser, food_df['time_begin'].to_numpy()[1:])))
+        gluc_time_array = np.array(list(map(dateParser, dexcom_df['Timestamp (YYYY-MM-DDThh:mm:ss)'].dropna().to_numpy())))
+        # iterate through the gluc_time_array and food_time 
+        gluc_idx = 0
+        food_idx = 0
+        # iterate through gluc and food
+        # {gluc_idx1: [], gluc_idx2: [], ...}
+        sugar_np_array= np.zeros(len(gluc_time_array))
+        carb_np_array = np.zeros(len(gluc_time_array))
+        while food_idx != len(food_time_array) - 1:
+            # check if the food_time is within 24 hours of the gluc time
+            # 4 cases
+            # 1) food_time < gluc_time and > 24 hours --> food_idx += 1
+            # 2) food_time < gluc_time and <= 24 hours --> gluc_dict[gluc_idx] += sugar_array[food_idx]; food_idx += 1
+            # 3) food_time > gluc_time and <= 24 hours --> 
+            # 4) food_time > gluc_time and > 24 hours --> gluc_idx += 1
+            food_time = food_time_array[food_idx]
+            gluc_time = gluc_time_array[gluc_idx]
+            time_diff = abs(food_time - gluc_time)
+            if food_time < gluc_time and time_diff > timedelta(hours = 24):
+                food_idx += 1
+                continue
+            elif food_time < gluc_time and time_diff <= timedelta(hours = 24):
+                sugar_np_array[gluc_idx] += float(sugar_array[food_idx])
+                carb_np_array[gluc_idx] += float(carb_array[food_idx])
+                food_idx += 1
+            elif food_time > gluc_time and time_diff <= timedelta(hours = 24):
+                sugar_np_array[gluc_idx] += float(sugar_array[food_idx])
+                carb_np_array[gluc_idx] += float(carb_array[food_idx])
+                food_idx += 1
+            else:
+                gluc_idx += 1
+                food_idx = 0
+                continue
+        return (sugar_np_array, carb_np_array)
+            
+            
     
     def hba1c(self, samples):
         d = {}
