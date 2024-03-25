@@ -127,7 +127,7 @@ class DataProcessor:
         data = {}
         for sample in samples:
             df = pd.read_csv(self.mainDir + sample + "/" + self.dexcomFormat.format(sample))
-            time_array = np.array(list(map(dateParser, df['Timestamp (YYYY-MM-DDThh:mm:ss)'].dropna().to_numpy())))
-            min_array = np.array([dt.hour * 60 + dt.minute + dt.second / 60 for dt in time_array])
+            time_array = np.array(list(map(dateParser, df['Timestamp (YYYY-MM-DDThh:mm:ss)'].to_numpy())))
+            min_array = np.array([dt.hour * 60 + dt.minute + dt.second / 60 if np.isnan(dt) else np.nan for dt in time_array])
             data[sample] = min_array
         return data
