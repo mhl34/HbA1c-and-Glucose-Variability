@@ -14,14 +14,15 @@ from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 import torch.nn.functional as F
 from DataProcessor import DataProcessor
-from glycemicDataset import glycemicDataset
+# from glycemicDataset import glycemicDataset
+from FeatureDataset import FeatureDataset
 from pp5 import pp5
-from Conv1DModel import Conv1DModel
-from LstmModel import LstmModel
-from TransformerModel import TransformerModel
-from DannModel import DannModel
-from SslModel import SslModel
-from UNet import UNet
+from models.Conv1DModel import Conv1DModel
+from models.LstmModel import LstmModel
+from models.TransformerModel import TransformerModel
+from models.DannModel import DannModel
+from models.SslModel import SslModel
+from models.UNet import UNet
 from torch.optim.lr_scheduler import StepLR, CosineAnnealingLR
 from Loss import Loss
 
@@ -46,12 +47,12 @@ class runModel:
         self.dropout_p = 0.5
         self.domain_lambda = 0.01
         self.batch_size = 32
-        self.num_features = 5
+        self.num_features = 6
 
     def modelChooser(self, modelType, samples):
         if modelType == "conv1d":
             print(f"model {modelType}")
-            return Conv1DModel(self.num_features, dropout_p = self.dropout_p, seq_len = self.seq_length)
+            return Conv1DModel(num_features = self.num_features, dropout_p = self.dropout_p, seq_len = self.seq_length)
         elif modelType == "lstm":
             print(f"model {modelType}")
             return LstmModel(input_size = self.seq_length, hidden_size = 100, num_layers = 8, batch_first = True, dropout = self.dropout_p, dtype = self.dtype)
@@ -79,7 +80,6 @@ class runModel:
         dataProcessor = DataProcessor(self.mainDir)
 
         foodData = dataProcessor.loadData(samples, "food")
-        exit()
         glucoseData = dataProcessor.loadData(samples, "dexcom")
         edaData = dataProcessor.loadData(samples, "eda")
         tempData = dataProcessor.loadData(samples, "temp")
@@ -88,7 +88,9 @@ class runModel:
 
         hba1c = dataProcessor.hba1c(samples)
 
-        train_dataset = glycemicDataset(samples, glucoseData, edaData, hrData, tempData, accData, hba1c, metric = self.glucMetric, dtype = self.dtype, seq_length = self.seq_length, normalize = self.normalize)
+        minData = dataProcessor.minFromMidnight(samples)
+
+        train_dataset = FeatureDataset(samples, glucoseData, edaData, hrData, tempData, accData, foodData, minData, hba1c, metric = self.glucMetric, dtype = self.dtype, seq_length = self.seq_length, normalize = self.normalize)
         # returns eda, hr, temp, then hba1c
         train_dataloader = DataLoader(train_dataset, batch_size = self.batch_size, shuffle = True)
 
@@ -110,9 +112,9 @@ class runModel:
 
             # sample, edaMean, hrMean, tempMean, accMean, glucPastMean, glucMean
             
-            for batch_idx, (sample, eda, hr, temp, acc, glucPast, glucPres) in progress_bar:
+            for batch_idx, (sample, acc, sugar, carb, mins, hba1c, glucPast, glucPres) in progress_bar:
                 # stack the inputs and feed as 3 channel input
-                input = torch.stack((eda, hr, temp, acc, glucPast)).permute((1,0,2)).to(self.dtype)
+                input = torch.stack((acc, sugar, carb, mins, hba1c, glucPast)).permute((1,0,2)).to(self.dtype)
 
                 target = glucPres
 
@@ -253,6 +255,7 @@ class runModel:
         self.evaluate(valSamples, model)
 
 if __name__ == "__main__":
-    mainDir = "/media/nvme1/expansion/glycemic_health_data/physionet.org/files/big-ideas-glycemic-wearable/1.1.2/"
+    # mainDir = "/media/nvme1/expansion/glycemic_health_data/physionet.org/files/big-ideas-glycemic-wearable/1.1.2/"
+    mainDir = "/Users/matthewlee/Matthew/Work/DunnLab/big-ideas-lab-glycemic-variability-and-wearable-device-data-1.1.0/"
     obj = runModel(mainDir)
     obj.run()
