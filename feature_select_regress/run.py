@@ -55,7 +55,7 @@ class runModel:
             return Conv1DModel(num_features = self.num_features, dropout_p = self.dropout_p, seq_len = self.seq_length)
         elif modelType == "lstm":
             print(f"model {modelType}")
-            return LstmModel(input_size = self.seq_length, hidden_size = 100, num_layers = 8, batch_first = True, dropout = self.dropout_p, dtype = self.dtype)
+            return LstmModel(num_features = self.num_features, input_size = self.seq_length, hidden_size = 1000, num_layers = 32, batch_first = True, dropout_p = self.dropout_p, dtype = self.dtype)
         elif modelType == "transformer":
             print(f"model {modelType}")
             return TransformerModel(num_features = 1024, num_head = 256, seq_length = self.seq_length, dropout_p = self.dropout_p, norm_first = True, dtype = self.dtype)
@@ -94,8 +94,9 @@ class runModel:
         # returns eda, hr, temp, then hba1c
         train_dataloader = DataLoader(train_dataset, batch_size = self.batch_size, shuffle = True)
 
-        criterion = Loss()
-        optimizer = optim.Adam(model.parameters(), lr = 1e-3, weight_decay = 1e-8)
+        criterion = Loss(model_type = self.modelType)
+        # optimizer = optim.Adam(model.parameters(), lr = 1e-3, weight_decay = 1e-8)
+        optimizer = optim.Adagrad(model.parameters(), lr=1.0)
         # optimizer = optim.SGD(model.parameters(), lr = 1e-6, momentum = 0.5, weight_decay = 1e-8)
         # scheduler = StepLR(optimizer, step_size=int(self.num_epochs/5), gamma=0.1)
         scheduler = CosineAnnealingLR(optimizer, T_max=self.num_epochs)
@@ -153,7 +154,6 @@ class runModel:
 
             print(f"epoch {epoch + 1} training loss: {sum(lossLst)/len(lossLst)} learning rate: {scheduler.get_last_lr()} training accuracy: {sum(accLst)/len(accLst)}")
             
-            print(output.shape, target.shape)
 
             # print(f"pers category accuracy: {sum(persAccList)/len(persAccList)}")
 
@@ -176,6 +176,7 @@ class runModel:
         dataProcessor = DataProcessor(self.mainDir)
         pp5vals = pp5()
 
+        foodData = dataProcessor.loadData(samples, "food")
         glucoseData = dataProcessor.loadData(samples, "dexcom")
         edaData = dataProcessor.loadData(samples, "eda")
         tempData = dataProcessor.loadData(samples, "temp")
@@ -184,11 +185,13 @@ class runModel:
 
         hba1c = dataProcessor.hba1c(samples)
 
-        val_dataset = glycemicDataset(samples, glucoseData, edaData, hrData, tempData, accData, hba1c, metric = self.glucMetric, dtype = self.dtype, seq_length = self.seq_length, normalize = self.normalize)
+        minData = dataProcessor.minFromMidnight(samples)
+
+        val_dataset = FeatureDataset(samples, glucoseData, edaData, hrData, tempData, accData, foodData, minData, hba1c, metric = self.glucMetric, dtype = self.dtype, seq_length = self.seq_length, normalize = self.normalize)
         # returns eda, hr, temp, then hba1c
         val_dataloader = DataLoader(val_dataset, batch_size = self.batch_size, shuffle = True)
 
-        criterion = Loss()
+        criterion = Loss(model_type = self.modelType)
 
         with torch.no_grad():
             for epoch in range(self.num_epochs):
@@ -203,9 +206,9 @@ class runModel:
                 
                 # sample, edaMean, hrMean, tempMean, accMean, glucPastMean, glucMean
 
-                for batch_idx, (_, eda, hr, temp, acc, glucPast, glucPres) in progress_bar:
+                for batch_idx, (sample, acc, sugar, carb, mins, hba1c, glucPast, glucPres) in progress_bar:
                     # stack the inputs and feed as 3 channel input
-                    input = torch.stack((eda, hr, temp, acc, glucPast)).permute((1,0,2)).to(self.dtype)
+                    input = torch.stack((acc, sugar, carb, mins, hba1c, glucPast)).permute((1,0,2)).to(self.dtype)
 
                     target = glucPres
 

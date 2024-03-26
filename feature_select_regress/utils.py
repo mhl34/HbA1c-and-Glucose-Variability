@@ -27,6 +27,8 @@ def dateParser(date):
         return datetime.datetime.strptime(date, mainFormat)
     except ValueError:
         return datetime.datetime.strptime(date, altFormat)
+    except:
+        return np.nan
 
 # function: get all aggregate glucose stats accessible by dictionary
 # input: glucose values (in a time span)

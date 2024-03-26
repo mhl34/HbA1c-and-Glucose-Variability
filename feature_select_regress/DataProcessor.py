@@ -78,7 +78,8 @@ class DataProcessor:
         carb_array = food_df['total_carb'].to_numpy()[1:]
         # base it off of time_begin
         food_time_array = np.array(list(map(dateParser, food_df['time_begin'].to_numpy()[1:])))
-        gluc_time_array = np.array(list(map(dateParser, dexcom_df['Timestamp (YYYY-MM-DDThh:mm:ss)'].dropna().to_numpy())))
+        gluc_time_array = np.array(list(map(dateParser, dexcom_df['Timestamp (YYYY-MM-DDThh:mm:ss)'].to_numpy())))
+        gluc_time_array = np.array(list(map(self.getMins, gluc_time_array)))
         # iterate through the gluc_time_array and food_time 
         gluc_idx = 0
         food_idx = 0
@@ -86,7 +87,7 @@ class DataProcessor:
         # {gluc_idx1: [], gluc_idx2: [], ...}
         sugar_np_array= np.zeros(len(gluc_time_array))
         carb_np_array = np.zeros(len(gluc_time_array))
-        while food_idx != len(food_time_array) - 1:
+        while food_idx != len(food_time_array) - 1 and gluc_idx != len(gluc_time_array) - 1:
             # check if the food_time is within 24 hours of the gluc time
             # 4 cases
             # 1) food_time < gluc_time and > 24 hours --> food_idx += 1
@@ -95,6 +96,12 @@ class DataProcessor:
             # 4) food_time > gluc_time and > 24 hours --> gluc_idx += 1
             food_time = food_time_array[food_idx]
             gluc_time = gluc_time_array[gluc_idx]
+            if not isinstance(food_time, datetime):
+                food_idx += 1
+                continue
+            if not isinstance(gluc_time, datetime):
+                gluc_idx += 1
+                continue
             time_diff = abs(food_time - gluc_time)
             if food_time < gluc_time and time_diff > timedelta(hours = 24):
                 food_idx += 1
@@ -128,6 +135,12 @@ class DataProcessor:
         for sample in samples:
             df = pd.read_csv(self.mainDir + sample + "/" + self.dexcomFormat.format(sample))
             time_array = np.array(list(map(dateParser, df['Timestamp (YYYY-MM-DDThh:mm:ss)'].to_numpy())))
-            min_array = np.array([dt.hour * 60 + dt.minute + dt.second / 60 if np.isnan(dt) else np.nan for dt in time_array])
+            min_array = np.array(list(map(self.getMins, time_array)))
             data[sample] = min_array
         return data
+
+    def getMins(self, time):
+        try:
+            return time.hour * 60 + time.minute + time.second / 60
+        except:
+            return np.nan

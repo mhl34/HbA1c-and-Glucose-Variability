@@ -2,8 +2,9 @@ import torch
 import torch.nn as nn
 
 class Loss(nn.Module):
-    def __init__(self):
+    def __init__(self, model_type):
         super(Loss, self).__init__()
+        self.model_type = model_type
         self.regLossFn = nn.MSELoss()
         self.maskLossFn = nn.MSELoss()
         self.dannLossFn = nn.CrossEntropyLoss()
