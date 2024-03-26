@@ -17,6 +17,8 @@ class LstmModel(nn.Module):
         self.seq_len = seq_len
         self.lstm_encoder = nn.LSTM(input_size = self.input_size * self.num_features, hidden_size = self.hidden_size, num_layers = self.num_layers, batch_first = self.batch_first, dropout = self.dropout_p, dtype = self.dtype)
         # self.lstm_decoder = nn.LSTM(input_size = self.hidden_size, hidden_size = self.input_size, num_layers = self.num_layers, batch_first = self.batch_first, dropout = self.dropout_p, dtype = self.dtype)
+        # initialize the weights
+        self.init_weights()
         self.fc1 = nn.Linear(self.hidden_size, 64, dtype = self.dtype)
         self.fc2 = nn.Linear(64, 32, dtype = self.dtype)
         self.fc3 = nn.Linear(32, self.input_size, dtype = self.dtype)
@@ -42,3 +44,8 @@ class LstmModel(nn.Module):
         mask[:,:,index:index + mask_len] = 0
         data = data * mask
         return data
+    
+    def init_weights(self):
+        for name, param in self.lstm_encoder.named_parameters():
+            if 'weight' in name:
+                nn.init.kaiming_normal_(param)

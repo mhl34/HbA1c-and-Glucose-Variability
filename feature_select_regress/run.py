@@ -55,7 +55,7 @@ class runModel:
             return Conv1DModel(num_features = self.num_features, dropout_p = self.dropout_p, seq_len = self.seq_length)
         elif modelType == "lstm":
             print(f"model {modelType}")
-            return LstmModel(num_features = self.num_features, input_size = self.seq_length, hidden_size = 1000, num_layers = 32, batch_first = True, dropout_p = self.dropout_p, dtype = self.dtype)
+            return LstmModel(num_features = self.num_features, input_size = self.seq_length, hidden_size = 100, num_layers = 32, batch_first = True, dropout_p = self.dropout_p, dtype = self.dtype)
         elif modelType == "transformer":
             print(f"model {modelType}")
             return TransformerModel(num_features = 1024, num_head = 256, seq_length = self.seq_length, dropout_p = self.dropout_p, norm_first = True, dtype = self.dtype)

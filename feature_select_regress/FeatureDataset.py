@@ -83,15 +83,17 @@ class FeatureDataset(Dataset):
 
         # normalize if needed
         if self.normalize:
-            return (sample, self.normalizeFn(accMean), self.normalizeFn(sugarMean), self.normalizeFn(carbMean), self.normalizeFn(minMean), self.normalizeFn(hba1cMean), self.normalizeFn(glucPastMean), self.normalizeFn(glucMean))
+            return (sample, self.normalizeFn(accSample, accMean), self.normalizeFn(sugarSample, sugarMean), self.normalizeFn(carbSample, carbMean), self.normalizeFn(minSample, minMean), self.normalizeFn(hba1cSample, hba1cMean), self.normalizeFn(glucoseSample, glucPastMean), self.normalizeFn(glucoseSample, glucMean))
         
+
+
         #return non-normalized outputs
         return (sample, accMean, sugarMean, carbMean, minMean, hba1cMean, glucPastMean, glucMean)
     
-    def normalizeFn(self, data, eps = 1e-5):
+    def normalizeFn(self, sample_data, data, eps = 1e-5):
         data = data[~np.isnan(data)]
-        var = np.var(data)
-        mean = np.mean(data)
+        var = np.var(sample_data)
+        mean = np.mean(sample_data)
         scaled_data = (data - mean) / np.sqrt(var + eps)
         return scaled_data
     
