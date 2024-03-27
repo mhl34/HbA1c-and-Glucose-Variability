@@ -47,7 +47,7 @@ class runModel:
         self.dropout_p = 0.5
         self.domain_lambda = 0.01
         self.batch_size = 32
-        self.num_features = 6
+        self.num_features = 5
 
     def modelChooser(self, modelType, samples):
         if modelType == "conv1d":
@@ -113,9 +113,10 @@ class runModel:
 
             # sample, edaMean, hrMean, tempMean, accMean, glucPastMean, glucMean
             
-            for batch_idx, (sample, acc, sugar, carb, mins, hba1c, glucPast, glucPres) in progress_bar:
+            # for batch_idx, (sample, acc, sugar, carb, mins, hba1c, glucPast, glucPres) in progress_bar:
+            for batch_idx, (sample, sugar, carb, mins, hba1c, glucPast, glucPres) in progress_bar:
                 # stack the inputs and feed as 3 channel input
-                input = torch.stack((acc, sugar, carb, mins, hba1c, glucPast)).permute((1,0,2)).to(self.dtype)
+                input = torch.stack((sugar, carb, mins, hba1c, glucPast)).permute((1,0,2)).to(self.dtype)
 
                 target = glucPres
 
@@ -135,8 +136,6 @@ class runModel:
                 else:
                     modelOut = model(input)
                     mask_output, output = modelOut[0].to(self.dtype), modelOut[1].to(self.dtype).squeeze()
-
-                print(output)
 
                 loss = criterion(output, target)
                 if self.modelType == "ssl":
@@ -208,9 +207,9 @@ class runModel:
                 
                 # sample, edaMean, hrMean, tempMean, accMean, glucPastMean, glucMean
 
-                for batch_idx, (sample, acc, sugar, carb, mins, hba1c, glucPast, glucPres) in progress_bar:
+                for batch_idx, (sample, sugar, carb, mins, hba1c, glucPast, glucPres) in progress_bar:
                     # stack the inputs and feed as 3 channel input
-                    input = torch.stack((acc, sugar, carb, mins, hba1c, glucPast)).permute((1,0,2)).to(self.dtype)
+                    input = torch.stack((sugar, carb, mins, hba1c, glucPast)).permute((1,0,2)).to(self.dtype)
 
                     target = glucPres
 
