@@ -140,4 +140,4 @@ class GeneticDataset(Dataset):
             return True in np.isnan(sample_array[sample_start: sample_start + 2 * self.seq_length + 1]) or len(sample_array[sample_start: sample_start  + 2 * self.seq_length + 1]) != 2 * self.seq_length + 1
         pp5val_dict = {"eda": self.pp5vals.eda, "hr": self.pp5vals.hr, "temp": self.pp5vals.temp, "acc": self.pp5vals.acc}
         pp5val = pp5val_dict[sample_type]
-        return True in np.isnan(sample_array[sample_start: sample_start + 2 * pp5val * self.seq_length + 1]) or len(sample_array[sample_start: sample_start  + 2 * pp5val * self.seq_length + 1]) != 2 * pp5val * self.seq_length + 1
+        return True in np.isnan(sample_array[sample_start: sample_start + pp5val * self.seq_length + 1]) or len(sample_array[sample_start: sample_start  + pp5val * self.seq_length + 1]) != pp5val * self.seq_length + 1
