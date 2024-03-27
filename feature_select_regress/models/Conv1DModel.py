@@ -11,7 +11,7 @@ class Conv1DModel(nn.Module):
         # num_features and then previous glucose
         # 3 channels for each of the different modalities
         # output: seq_len x 8
-        self.conv1 = nn.Conv1d(in_channels = self.num_features + 1, out_channels = 28, kernel_size = 7, stride = 1, padding = 3).to(dtype)
+        self.conv1 = nn.Conv1d(in_channels = self.num_features, out_channels = 28, kernel_size = 7, stride = 1, padding = 3).to(dtype)
         # input: seq_len x 8
         # output: seq_len x 16
         self.conv2 = nn.Conv1d(in_channels = 28, out_channels = 48, kernel_size = 5, stride = 1, padding = 2).to(dtype)
