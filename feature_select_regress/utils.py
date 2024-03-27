@@ -23,10 +23,14 @@ random.seed(42)
 def dateParser(date):
     mainFormat = '%Y-%m-%d %H:%M:%S.%f'
     altFormat = '%Y-%m-%d %H:%M:%S'
+    altFormat2 = '%m/%d/%Y %H:%M'
     try:
         return datetime.datetime.strptime(date, mainFormat)
     except ValueError:
-        return datetime.datetime.strptime(date, altFormat)
+        try:
+            return datetime.datetime.strptime(date, altFormat)
+        except ValueError:
+            return datetime.datetime.strptime(date, altFormat2)
     except:
         return np.nan
 
