@@ -55,7 +55,7 @@ class runModel:
             return Conv1DModel(num_features = self.num_features, dropout_p = self.dropout_p, seq_len = self.seq_length)
         elif modelType == "lstm":
             print(f"model {modelType}")
-            return LstmModel(num_features = self.num_features, input_size = self.seq_length, hidden_size = 100, num_layers = 32, batch_first = True, dropout_p = self.dropout_p, dtype = self.dtype)
+            return LstmModel(num_features = self.num_features, input_size = self.seq_length, hidden_size = 100, num_layers = 8, batch_first = True, dropout_p = self.dropout_p, dtype = self.dtype)
         elif modelType == "transformer":
             print(f"model {modelType}")
             return TransformerModel(num_features = 1024, num_head = 256, seq_length = self.seq_length, dropout_p = self.dropout_p, norm_first = True, dtype = self.dtype)
@@ -95,8 +95,8 @@ class runModel:
         train_dataloader = DataLoader(train_dataset, batch_size = self.batch_size, shuffle = True)
 
         criterion = Loss(model_type = self.modelType)
-        # optimizer = optim.Adam(model.parameters(), lr = 1e-3, weight_decay = 1e-8)
-        optimizer = optim.Adagrad(model.parameters(), lr=1.0)
+        optimizer = optim.Adam(model.parameters(), lr = 1e-3, weight_decay = 1e-8)
+        # optimizer = optim.Adagrad(model.parameters(), lr=1.0)
         # optimizer = optim.SGD(model.parameters(), lr = 1e-6, momentum = 0.5, weight_decay = 1e-8)
         # scheduler = StepLR(optimizer, step_size=int(self.num_epochs/5), gamma=0.1)
         scheduler = CosineAnnealingLR(optimizer, T_max=self.num_epochs)
@@ -135,6 +135,8 @@ class runModel:
                 else:
                     modelOut = model(input)
                     mask_output, output = modelOut[0].to(self.dtype), modelOut[1].to(self.dtype).squeeze()
+
+                print(output)
 
                 loss = criterion(output, target)
                 if self.modelType == "ssl":
@@ -259,7 +261,7 @@ class runModel:
         self.evaluate(valSamples, model)
 
 if __name__ == "__main__":
-    # mainDir = "/media/nvme1/expansion/glycemic_health_data/physionet.org/files/big-ideas-glycemic-wearable/1.1.2/"
-    mainDir = "/Users/matthewlee/Matthew/Work/DunnLab/big-ideas-lab-glycemic-variability-and-wearable-device-data-1.1.0/"
+    mainDir = "/media/nvme1/expansion/glycemic_health_data/physionet.org/files/big-ideas-glycemic-wearable/1.1.2/"
+    # mainDir = "/Users/matthewlee/Matthew/Work/DunnLab/big-ideas-lab-glycemic-variability-and-wearable-device-data-1.1.0/"
     obj = runModel(mainDir)
     obj.run()
