@@ -2,6 +2,10 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 from utils import dateParser
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+sns.set_theme()
 
 class DataProcessor:
     def __init__(self, mainDir = ""):
@@ -55,6 +59,12 @@ class DataProcessor:
                 food_df = pd.read_csv(self.mainDir + sample + "/" + self.foodLogFormat.format(sample), sep =',', names = column_names)
                 dexcom_df = pd.read_csv(self.mainDir + sample + "/" + self.dexcomFormat.format(sample))
                 data[sample] = self.processFood(food_df, dexcom_df)
+
+                # plot for sanity check
+                plt.clf()
+                plt.plot(np.arange(len(data[sample][0])), data[sample][0])
+                plt.plot(np.arange(len(data[sample][1])), data[sample][1])
+                plt.savefig(f"plots/{sample}_food_log.png")
         else:
             for sample in samples:
                 data[sample] = np.array([])
@@ -79,7 +89,7 @@ class DataProcessor:
         # base it off of time_begin
         food_time_array = np.array(list(map(dateParser, food_df['time_begin'].to_numpy()[1:])))
         gluc_time_array = np.array(list(map(dateParser, dexcom_df['Timestamp (YYYY-MM-DDThh:mm:ss)'].to_numpy())))
-        gluc_time_array = np.array(list(map(self.getMins, gluc_time_array)))
+        # gluc_time_array = np.array(list(map(self.getMins, gluc_time_array)))
         # iterate through the gluc_time_array and food_time 
         gluc_idx = 0
         food_idx = 0
@@ -110,10 +120,10 @@ class DataProcessor:
                 sugar_np_array[gluc_idx] += float(sugar_array[food_idx])
                 carb_np_array[gluc_idx] += float(carb_array[food_idx])
                 food_idx += 1
-            elif food_time > gluc_time and time_diff <= timedelta(hours = 24):
-                sugar_np_array[gluc_idx] += float(sugar_array[food_idx])
-                carb_np_array[gluc_idx] += float(carb_array[food_idx])
-                food_idx += 1
+            # elif food_time > gluc_time and time_diff <= timedelta(hours = 24):
+            #     sugar_np_array[gluc_idx] += float(sugar_array[food_idx])
+            #     carb_np_array[gluc_idx] += float(carb_array[food_idx])
+            #     food_idx += 1
             else:
                 gluc_idx += 1
                 food_idx = 0
@@ -122,7 +132,8 @@ class DataProcessor:
     
     def hba1c(self, samples):
         d = {}
-        df = pd.read_csv(self.mainDir + "Demographics.txt", sep='\t')
+        # df = pd.read_csv(self.mainDir + "Demographics.txt", sep='\t')
+        df = pd.read_csv(self.mainDir + "Demographics.csv", sep=',')
         for sample in samples:
             hba1c = df.loc[df['ID'] == int(sample)]['HbA1c'].item()
             dexcom_df = pd.read_csv(self.mainDir + sample + "/" + self.dexcomFormat.format(sample))
