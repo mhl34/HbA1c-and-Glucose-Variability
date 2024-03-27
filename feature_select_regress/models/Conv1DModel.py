@@ -3,23 +3,24 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class Conv1DModel(nn.Module):
-    def __init__(self, num_features, dropout_p = 0, normalize = False, seq_len = 28):
+    def __init__(self, num_features, dropout_p = 0, normalize = False, seq_len = 28, dtype = torch.float):
         super(Conv1DModel, self).__init__()
         self.num_features = num_features
         self.seq_len = seq_len
-        # input: 28 x 4
+        # input: seq_len x (num_features + 1)
+        # num_features and then previous glucose
         # 3 channels for each of the different modalities
-        # output: 12 x 8
-        self.conv1 = nn.Conv1d(in_channels = self.num_features, out_channels = 8, kernel_size = 5, stride = 2)
-        # input: 12 x 8
-        # output: 10 x 16
-        self.conv2 = nn.Conv1d(in_channels = 8, out_channels = 16, kernel_size = 3, stride = 1)
-        # input: 10 x 16
-        # output: 6 x 64
-        self.conv3 = nn.Conv1d(in_channels = 16, out_channels = 64, kernel_size = 5, stride = 1)
-        self.dropout = nn.Dropout(dropout_p)
-        self.fc1 = nn.Linear(64 * (((self.seq_len - 4) // 2) - 2 - 4), 64)
-        self.fc2 = nn.Linear(64, self.seq_len)
+        # output: seq_len x 8
+        self.conv1 = nn.Conv1d(in_channels = self.num_features + 1, out_channels = 28, kernel_size = 7, stride = 1, padding = 3).to(dtype)
+        # input: seq_len x 8
+        # output: seq_len x 16
+        self.conv2 = nn.Conv1d(in_channels = 28, out_channels = 48, kernel_size = 5, stride = 1, padding = 2).to(dtype)
+        # input: seq_len x 16
+        # output: seq_len x 64
+        self.conv3 = nn.Conv1d(in_channels = 48, out_channels = 84, kernel_size = 3, stride = 1, padding = 1).to(dtype)
+        self.dropout = nn.Dropout(dropout_p).to(dtype)
+        self.fc1 = nn.Linear(84 * self.seq_len, 64).to(dtype)
+        self.fc2 = nn.Linear(64, self.seq_len).to(dtype)
         self.normalize = normalize
     
     def forward(self, x):
@@ -31,3 +32,4 @@ class Conv1DModel(nn.Module):
         out = F.relu(self.fc1(self.dropout(out)))
         out = F.relu(self.fc2(self.dropout(out)))
         return out
+
