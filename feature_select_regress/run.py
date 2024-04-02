@@ -33,7 +33,7 @@ import seaborn as sns
 sns.set_theme()
 
 class runModel:
-    def __init__(self, mainDir):
+    def __init__(self, mainDir, projectDir):
         parser = argparse.ArgumentParser()
         parser.add_argument("-m", "--modelType", dest="modelType", help="input the type of model you want to use")
         parser.add_argument("-gm", "--glucMetric", default = "mean", dest="glucMetric", help="input the type of glucose metric you want to regress for")
@@ -44,6 +44,7 @@ class runModel:
         self.modelType = args.modelType
         self.glucMetric = args.glucMetric
         self.dtype = torch.double if self.modelType == "conv1d" else torch.float64
+        self.projectDir = projectDir
         self.mainDir = mainDir
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.max_norm = 1
@@ -52,11 +53,11 @@ class runModel:
         self.normalize = args.normalize
 
         # model parameters
-        self.dropout_p = 0.01
+        self.dropout_p = 0.5
         self.domain_lambda = 0.01
         self.train_batch_size = 32
         self.val_batch_size = 32
-        self.num_features = 5
+        self.num_features = 4
         self.lr = 1e-3
         self.weight_decay = 1e-8
 
@@ -71,10 +72,12 @@ class runModel:
             return Conv1DModel(num_features = self.num_features, dropout_p = self.dropout_p, seq_len = self.seq_length)
         elif modelType == "lstm":
             print(f"model {modelType}")
-            return LstmModel(num_features = self.num_features, input_size = self.seq_length, hidden_size = 8, num_layers = 2, batch_first = True, dropout_p = self.dropout_p, dtype = self.dtype)
+            # sweep hidden_size 16, 32, 64
+            # sweep num_layers 2, 4, 8, 16
+            return LstmModel(num_features = self.num_features, input_size = self.seq_length, hidden_size = 32, num_layers = 2, batch_first = True, dropout_p = self.dropout_p, dtype = self.dtype)
         elif modelType == "transformer":
             print(f"model {modelType}")
-            return TransformerModel(num_features = 1024, num_head = 256, seq_length = self.seq_length, dropout_p = self.dropout_p, norm_first = True, dtype = self.dtype)
+            return TransformerModel(num_features = 1024, num_head = 16, seq_length = self.seq_length, dropout_p = self.dropout_p, norm_first = True, dtype = self.dtype)
         elif modelType == "dann":
             print(f"model {modelType}")
             return DannModel(self.modelType, samples, dropout = self.dropout_p, seq_len = self.seq_length)
@@ -195,7 +198,7 @@ class runModel:
                 alpha = 2. / (1. + np.exp(-10 * p)) - 1
                 
                 # identify what type of outputs come from the model
-                if self.modelType == "conv1d" or self.modelType == "lstm":
+                if self.modelType == "conv1d" or self.modelType == "lstm" or self.modelType == "unet":
                     output = model(input).to(self.dtype).squeeze()
                 elif self.modelType == "transformer":
                     output = model(target.view(target.shape[0], 1), input).to(self.dtype).squeeze()
@@ -237,7 +240,7 @@ class runModel:
             plt.legend()
 
             # Save the plot as a PNG file
-            plt.savefig(f'plots/{self.modelType}_output.png')
+            plt.savefig(f'plots/{self.modelType}_output_no_gluc.png')
 
             # example output with the epoch
             # for outVal, targetVal in zip(output[-1], target[-1]):
@@ -250,10 +253,19 @@ class runModel:
     # def persAcc(self, pred, glucStats):
     #     return torch.mean((torch.abs(pred - glucStats["mean"]) < glucStats["std"]).to(torch.float64)).item()
 
+    def save_dataloader(self, dataloader, filename):
+        save_path = os.path.join(self.mainDir, filename)
+        np.savez(save_path, dataloader)
+
+    def load_dataloader(self, filename):
+        load_path = os.path.join(self.mainDir, filename)
+        loaded_data = np.load(load_path)
+        return loaded_data['arr_0']
+
     def run(self):
         samples = [str(i).zfill(3) for i in range(1, 17)]
-        trainSamples = samples[:-5]
-        valSamples = samples[-5:]
+        trainSamples = samples[:-4]
+        valSamples = samples[-4:]
 
         model = self.modelChooser(self.modelType, samples)
 
@@ -337,18 +349,23 @@ class runModel:
             transforms.Normalize(mean = mean_list, std = std_list)  # Normalize using mean and std
         ])
 
-        train_dataset = FeatureDataset(trainSamples, glucoseData, edaData, hrData, tempData, accData, foodData, minData, hba1c, metric = self.glucMetric, dtype = self.dtype, seq_length = self.seq_length, transforms = custom_transform)
-        # returns eda, hr, temp, then hba1c
-        train_dataloader = DataLoader(train_dataset, batch_size = self.train_batch_size, shuffle = True)
+        # train_dataset = FeatureDataset(trainSamples, glucoseData, edaData, hrData, tempData, accData, foodData, minData, hba1c, metric = self.glucMetric, dtype = self.dtype, seq_length = self.seq_length, transforms = custom_transform)
+        # # returns eda, hr, temp, then hba1c
+        # train_dataloader = DataLoader(train_dataset, batch_size = self.train_batch_size, shuffle = True)
+
+        # Load or create train dataloader
+        train_dataloader_file = "feature_select_regress/dataloader/train_dataloader.npz"
+        if os.path.isfile(os.path.join(self.projectDir, train_dataloader_file)):
+            train_dataloader = self.load_dataloader(train_dataloader_file)
+        else:
+            # Create new train dataloader
+            train_dataset = FeatureDataset(trainSamples, glucoseData, edaData, hrData, tempData, accData, foodData, minData, hba1c, metric=self.glucMetric, dtype=self.dtype, seq_length=self.seq_length, transforms=custom_transform)
+            train_dataloader = DataLoader(train_dataset, batch_size=self.train_batch_size, shuffle=True)
+            self.save_dataloader(train_dataloader, train_dataloader_file)
 
         optimizer = optim.Adam(model.parameters(), lr = self.lr, weight_decay = self.weight_decay)
-        # optimizer = optim.Adagrad(model.parameters(), lr=1.0)
-        # optimizer = optim.SGD(model.parameters(), lr = 1e-6, momentum = 0.5, weight_decay = 1e-8)
-        # scheduler = StepLR(optimizer, step_size=int(self.num_epochs/5), gamma=0.1)
         scheduler = CosineAnnealingLR(optimizer, T_max=self.num_epochs)
-
         criterion = Loss(model_type = self.modelType)
-        
         self.train(model, train_dataloader, optimizer, scheduler, criterion)
 
         print("============================")
@@ -371,14 +388,22 @@ class runModel:
         tempData = dataProcessor.loadData(samples, "temp")
         hrData = dataProcessor.loadData(samples, "hr")
         accData = dataProcessor.loadData(samples, "acc")
-
         hba1c = dataProcessor.hba1c(samples)
-
         minData = dataProcessor.minFromMidnight(samples)
 
-        val_dataset = FeatureDataset(valSamples, glucoseData, edaData, hrData, tempData, accData, foodData, minData, hba1c, metric = self.glucMetric, dtype = self.dtype, seq_length = self.seq_length, transforms = custom_transform)
-        # returns eda, hr, temp, then hba1c
-        val_dataloader = DataLoader(val_dataset, batch_size = self.val_batch_size, shuffle = True)
+        # val_dataset = FeatureDataset(valSamples, glucoseData, edaData, hrData, tempData, accData, foodData, minData, hba1c, metric = self.glucMetric, dtype = self.dtype, seq_length = self.seq_length, transforms = custom_transform)
+        # # returns eda, hr, temp, then hba1c
+        # val_dataloader = DataLoader(val_dataset, batch_size = self.val_batch_size, shuffle = True)
+
+        # Load or create validation dataloader
+        val_dataloader_file = "feature_select_regress/dataloader/val_dataloader.npz"
+        if os.path.isfile(os.path.join(self.projectDir, val_dataloader_file)):
+            val_dataloader = self.load_dataloader(val_dataloader_file)
+        else:
+            # Create new validation dataloader
+            val_dataset = FeatureDataset(valSamples, glucoseData, edaData, hrData, tempData, accData, foodData, minData, hba1c, metric=self.glucMetric, dtype=self.dtype, seq_length=self.seq_length, transforms=custom_transform)
+            val_dataloader = DataLoader(val_dataset, batch_size=self.val_batch_size, shuffle=False)
+            self.save_dataloader(val_dataloader, val_dataloader_file)
 
         criterion = Loss(model_type = self.modelType)
 
@@ -386,6 +411,7 @@ class runModel:
 
 if __name__ == "__main__":
     mainDir = "/media/nvme1/expansion/glycemic_health_data/physionet.org/files/big-ideas-glycemic-wearable/1.1.2/"
+    projectDir = "/home/mhl34/HbA1c-and-Glucose-Variability/"
     # mainDir = "/Users/matthewlee/Matthew/Work/DunnLab/big-ideas-lab-glycemic-variability-and-wearable-device-data-1.1.0/"
     obj = runModel(mainDir)
     obj.run()
