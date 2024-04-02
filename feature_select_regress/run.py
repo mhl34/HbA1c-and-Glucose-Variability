@@ -1,7 +1,9 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
+from torchvision import datasets, transforms
 import pandas as pd
 import math
 import numpy as np
@@ -25,6 +27,10 @@ from models.SslModel import SslModel
 from models.UNet import UNet
 from torch.optim.lr_scheduler import StepLR, CosineAnnealingLR
 from Loss import Loss
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+sns.set_theme()
 
 class runModel:
     def __init__(self, mainDir):
@@ -44,10 +50,20 @@ class runModel:
         self.seq_length = int(args.seq_len)
         self.num_epochs = int(args.num_epochs)
         self.normalize = args.normalize
-        self.dropout_p = 0.5
+
+        # model parameters
+        self.dropout_p = 0.01
         self.domain_lambda = 0.01
-        self.batch_size = 32
+        self.train_batch_size = 32
+        self.val_batch_size = 32
         self.num_features = 5
+        self.lr = 1e-3
+        self.weight_decay = 1e-8
+
+        # normalization
+        self.train_mean = 0
+        self.train_std = 0
+        self.eps = 1e-12
 
     def modelChooser(self, modelType, samples):
         if modelType == "conv1d":
@@ -55,7 +71,7 @@ class runModel:
             return Conv1DModel(num_features = self.num_features, dropout_p = self.dropout_p, seq_len = self.seq_length)
         elif modelType == "lstm":
             print(f"model {modelType}")
-            return LstmModel(num_features = self.num_features, input_size = self.seq_length, hidden_size = 100, num_layers = 8, batch_first = True, dropout_p = self.dropout_p, dtype = self.dtype)
+            return LstmModel(num_features = self.num_features, input_size = self.seq_length, hidden_size = 8, num_layers = 2, batch_first = True, dropout_p = self.dropout_p, dtype = self.dtype)
         elif modelType == "transformer":
             print(f"model {modelType}")
             return TransformerModel(num_features = 1024, num_head = 256, seq_length = self.seq_length, dropout_p = self.dropout_p, norm_first = True, dtype = self.dtype)
@@ -70,7 +86,177 @@ class runModel:
             return UNet(self.num_features, normalize = False, seq_len = self.seq_length)
         return None
 
-    def train(self, samples, model):
+    def train(self, model, train_dataloader, optimizer, scheduler, criterion):
+        for epoch in range(self.num_epochs):
+
+            progress_bar = tqdm(enumerate(train_dataloader), total=len(train_dataloader), desc=f'Epoch {epoch + 1}/{self.num_epochs}', unit='batch')
+            
+            lossLst = []
+            accLst = []
+            persAccList = []
+
+            len_dataloader = len(train_dataloader)
+
+            # sample, edaMean, hrMean, tempMean, accMean, glucPastMean, glucMean
+            
+            # for batch_idx, (sample, acc, sugar, carb, mins, hba1c, glucPast, glucPres) in progress_bar:
+            for batch_idx, data in progress_bar:
+                # stack the inputs and feed as 3 channel input
+                data = data.squeeze(2)
+                input = data[:, :-1, :].to(self.dtype)
+
+                target = data[:, -1, :]
+
+                # if self.normalize:
+                #     p = 2  # Using L2 norm
+                #     epsilon = 1e-12
+                #     input_norm = max(torch.norm(input, p=p), epsilon)  # Calculate the p-norm of v
+                #     target_norm = max(torch.norm(target, p=p), epsilon)  # Find the maximum between v_norm and epsilon
+                #     input = F.normalize(input)
+                #     target = F.normalize(target)
+
+                # zero index the dann target
+                # dannTarget = torch.tensor([int(i) - 1 for i in sample]).to(torch.long)
+
+                p = float(batch_idx + epoch * len_dataloader) / (self.num_epochs * len_dataloader)
+                alpha = 2. / (1. + np.exp(-10 * p)) - 1
+
+                if self.modelType == "conv1d" or self.modelType == "lstm" or self.modelType == "unet":
+                    output = model(input).to(self.dtype).squeeze()
+                elif self.modelType == "transformer":
+                    output = model(target, input).to(self.dtype).squeeze()
+                # elif self.modelType == "dann":
+                #     modelOut = model(input, alpha)
+                #     dann_output, output = modelOut[0].to(self.dtype), modelOut[1].to(self.dtype).squeeze()
+                else:
+                    modelOut = model(input)
+                    mask_output, output = modelOut[0].to(self.dtype), modelOut[1].to(self.dtype).squeeze()
+
+                loss = criterion(output, target)
+                # if self.modelType == "ssl":
+                #     loss = criterion(mask_output, input, label = "ssl")
+                # if self.modelType == "dann":
+                #     loss = criterion(dann_output, dannTarget, label = "dann")
+
+                optimizer.zero_grad()
+                loss.backward(retain_graph = True)
+                nn.utils.clip_grad_norm_(model.parameters(), max_norm = 1)
+                optimizer.step()
+
+                lossLst.append(loss.item())
+                output_arr = ((output * self.train_std) + self.train_mean)
+                target_arr = ((target * self.train_std) + self.train_mean)
+                accLst.append(1 - self.mape(output_arr, target_arr))
+                # persAccList.append(self.persAcc(output, target))
+            scheduler.step()
+
+            # for outVal, targetVal in zip(output_arr.detach().numpy()[-1], target_arr.detach().numpy()[-1]):
+            #     print(f"output: {outVal.item()}, target: {targetVal.item()}, difference: {(outVal.item() - targetVal.item())}")
+       
+
+            print(f"epoch {epoch + 1} training loss: {sum(lossLst)/len(lossLst)} learning rate: {scheduler.get_last_lr()} training accuracy: {sum(accLst)/len(accLst)}")
+            
+
+            # print(f"pers category accuracy: {sum(persAccList)/len(persAccList)}")
+
+            
+
+    def evaluate(self, model, val_dataloader, criterion):
+        
+        with torch.no_grad():
+            epoch = 1
+            progress_bar = tqdm(enumerate(val_dataloader), total=len(val_dataloader), desc=f'Epoch {epoch + 1}/{self.num_epochs}', unit='batch')
+                
+            lossLst = []
+            accLst = []
+            persAccList = []
+
+            len_dataloader = len(val_dataloader)
+            
+            # sample, edaMean, hrMean, tempMean, accMean, glucPastMean, glucMean
+
+            for batch_idx, data in progress_bar:
+                # stack the inputs and feed as 3 channel input
+                data = data.squeeze(2)
+                input = data[:, :-1, :].to(self.dtype)
+
+                target = data[:, -1, :]
+
+                # if self.normalize:
+                #     p = 2  # Using L2 norm
+                #     epsilon = 1e-12
+                #     input_norm = max(torch.norm(input, p=p), epsilon)  # Calculate the p-norm of v
+                #     target_norm = max(torch.norm(target, p=p), epsilon)  # Find the maximum between v_norm and epsilon
+                #     input = F.normalize(input)
+                #     target = F.normalize(target)
+
+                # alpha value for dann model
+                p = float(batch_idx + epoch * len_dataloader) / (self.num_epochs * len_dataloader)
+                alpha = 2. / (1. + np.exp(-10 * p)) - 1
+                
+                # identify what type of outputs come from the model
+                if self.modelType == "conv1d" or self.modelType == "lstm":
+                    output = model(input).to(self.dtype).squeeze()
+                elif self.modelType == "transformer":
+                    output = model(target.view(target.shape[0], 1), input).to(self.dtype).squeeze()
+                # elif self.modelType == "dann":
+                #     modelOut = model(input, alpha)
+                #     _, output = modelOut[0], modelOut[1].to(self.dtype).squeeze()
+                else:
+                    modelOut = model(input)
+                    _, output = modelOut[0], modelOut[1].to(self.dtype).squeeze()
+                
+                # loss is only calculated from the main task
+                loss = criterion(output, target)
+
+                lossLst.append(loss.item())
+                output_arr = ((output * self.train_std) + self.train_mean)
+                target_arr = ((target * self.train_std) + self.train_mean)
+                accLst.append(1 - self.mape(output_arr, target_arr))
+                # persAccList.append(self.persAcc(output, glucStats))
+
+            print(f"val loss: {sum(lossLst)/len(lossLst)} val accuracy: {sum(accLst)/len(accLst)}")
+
+            # print(f"pers category accuracy: {sum(persAccList)/len(persAccList)}")
+
+            # example output with the epoch
+            plt.clf()
+            plt.grid(True)
+            plt.figure(figsize=(8, 6))
+
+            # Plot the target array
+            plt.plot(target_arr.detach().numpy()[-1], label='Target')
+
+            # Plot the output arrays (first and second arrays in the tuple)
+            plt.plot(output_arr.detach().numpy()[-1], label='Output')
+
+            # Add labels and legend
+            plt.xlabel('Index')
+            plt.ylabel('Value')
+            plt.title(f'Target vs. Output (model: {self.modelType})')
+            plt.legend()
+
+            # Save the plot as a PNG file
+            plt.savefig(f'plots/{self.modelType}_output.png')
+
+            # example output with the epoch
+            # for outVal, targetVal in zip(output[-1], target[-1]):
+            #     print(f"output: {(outVal.item() * self.train_std) + self.train_mean}, target: {(targetVal.item() * self.train_std) + self.train_mean}, difference: {(outVal.item() - targetVal.item() * self.train_std) + self.train_mean}")
+             
+
+    def mape(self, pred, target):
+        return (torch.mean(torch.div(torch.abs(target - pred), torch.abs(target)))).item()
+
+    # def persAcc(self, pred, glucStats):
+    #     return torch.mean((torch.abs(pred - glucStats["mean"]) < glucStats["std"]).to(torch.float64)).item()
+
+    def run(self):
+        samples = [str(i).zfill(3) for i in range(1, 17)]
+        trainSamples = samples[:-5]
+        valSamples = samples[-5:]
+
+        model = self.modelChooser(self.modelType, samples)
+
         print(self.device)
         print("============================")
         print("Training...")
@@ -90,79 +276,81 @@ class runModel:
 
         minData = dataProcessor.minFromMidnight(samples)
 
-        train_dataset = FeatureDataset(samples, glucoseData, edaData, hrData, tempData, accData, foodData, minData, hba1c, metric = self.glucMetric, dtype = self.dtype, seq_length = self.seq_length, normalize = self.normalize)
-        # returns eda, hr, temp, then hba1c
-        train_dataloader = DataLoader(train_dataset, batch_size = self.batch_size, shuffle = True)
+        gluc_mean = 0
+        sugar_mean = 0
+        carb_mean = 0
+        min_mean = 0
+        hba1c_mean = 0
 
-        criterion = Loss(model_type = self.modelType)
-        optimizer = optim.Adam(model.parameters(), lr = 1e-3, weight_decay = 1e-8)
+        gluc_std = 0
+        sugar_std = 0
+        carb_std = 0
+        min_std = 0
+        hba1c_std = 0
+
+        for sample in samples:
+            glucoseSample = glucoseData[sample]
+            sugarSample, carbSample = foodData[sample]
+            minSample = minData[sample]
+            hba1cSample = hba1c[sample]
+            # drop nan
+            glucoseSample = glucoseSample[~np.isnan(glucoseSample)]
+            sugarSample = sugarSample[~np.isnan(sugarSample)]
+            carbSample = carbSample[~np.isnan(carbSample)]
+            minSample = minSample[~np.isnan(minSample)]
+            hba1cSample = hba1cSample[~np.isnan(hba1cSample)]
+            # means 
+            gluc_mean += glucoseSample.mean().item()
+            sugar_mean += sugarSample.mean().item()
+            carb_mean += carbSample.mean().item()
+            min_mean += minSample.mean().item()
+            hba1c_mean += hba1cSample.mean().item()
+            # stds
+            gluc_std += glucoseSample.std().item()
+            sugar_std += sugarSample.std().item()
+            carb_std += carbSample.std().item()
+            min_std += minSample.std().item()
+            hba1c_std += hba1cSample.std().item()
+        # mean
+        gluc_mean /= len(samples)
+        sugar_mean /= len(samples)
+        carb_mean /= len(samples)
+        min_mean /= len(samples)
+        hba1c_mean /= len(samples)
+        # std
+        gluc_std /= len(samples)
+        sugar_std /= len(samples)
+        carb_std /= len(samples)
+        min_std /= len(samples)
+        hba1c_std /= len(samples)
+
+        self.train_mean = gluc_mean
+        self.train_std = gluc_std
+
+        mean_list = [sugar_mean, carb_mean, min_mean, hba1c_mean, gluc_mean, gluc_mean]
+        std_list = [sugar_std, carb_std, min_mean, hba1c_std, gluc_std, gluc_std]
+        std_list = [std + self.eps if std > self.eps else 1 for std in std_list]
+
+        # Step 2: Define a custom transform to normalize the data
+        custom_transform = transforms.Compose([
+            # transforms.ToTensor(),  # Convert PIL image to Tensor
+            transforms.Normalize(mean = mean_list, std = std_list)  # Normalize using mean and std
+        ])
+
+        train_dataset = FeatureDataset(trainSamples, glucoseData, edaData, hrData, tempData, accData, foodData, minData, hba1c, metric = self.glucMetric, dtype = self.dtype, seq_length = self.seq_length, transforms = custom_transform)
+        # returns eda, hr, temp, then hba1c
+        train_dataloader = DataLoader(train_dataset, batch_size = self.train_batch_size, shuffle = True)
+
+        optimizer = optim.Adam(model.parameters(), lr = self.lr, weight_decay = self.weight_decay)
         # optimizer = optim.Adagrad(model.parameters(), lr=1.0)
         # optimizer = optim.SGD(model.parameters(), lr = 1e-6, momentum = 0.5, weight_decay = 1e-8)
         # scheduler = StepLR(optimizer, step_size=int(self.num_epochs/5), gamma=0.1)
         scheduler = CosineAnnealingLR(optimizer, T_max=self.num_epochs)
 
-        for epoch in range(self.num_epochs):
+        criterion = Loss(model_type = self.modelType)
+        
+        self.train(model, train_dataloader, optimizer, scheduler, criterion)
 
-            progress_bar = tqdm(enumerate(train_dataloader), total=len(train_dataloader), desc=f'Epoch {epoch + 1}/{self.num_epochs}', unit='batch')
-            
-            lossLst = []
-            accLst = []
-            persAccList = []
-
-            len_dataloader = len(train_dataloader)
-
-            # sample, edaMean, hrMean, tempMean, accMean, glucPastMean, glucMean
-            
-            # for batch_idx, (sample, acc, sugar, carb, mins, hba1c, glucPast, glucPres) in progress_bar:
-            for batch_idx, (sample, sugar, carb, mins, hba1c, glucPast, glucPres) in progress_bar:
-                # stack the inputs and feed as 3 channel input
-                input = torch.stack((sugar, carb, mins, hba1c, glucPast)).permute((1,0,2)).to(self.dtype)
-
-                target = glucPres
-
-                # zero index the dann target
-                dannTarget = torch.tensor([int(i) - 1 for i in sample]).to(torch.long)
-
-                p = float(batch_idx + epoch * len_dataloader) / (self.num_epochs * len_dataloader)
-                alpha = 2. / (1. + np.exp(-10 * p)) - 1
-
-                if self.modelType == "conv1d" or self.modelType == "lstm" or self.modelType == "unet":
-                    output = model(input).to(self.dtype).squeeze()
-                elif self.modelType == "transformer":
-                    output = model(target, input).to(self.dtype).squeeze()
-                elif self.modelType == "dann":
-                    modelOut = model(input, alpha)
-                    dann_output, output = modelOut[0].to(self.dtype), modelOut[1].to(self.dtype).squeeze()
-                else:
-                    modelOut = model(input)
-                    mask_output, output = modelOut[0].to(self.dtype), modelOut[1].to(self.dtype).squeeze()
-
-                loss = criterion(output, target)
-                if self.modelType == "ssl":
-                    loss = criterion(mask_output, input, label = "ssl")
-                if self.modelType == "dann":
-                    loss = criterion(dann_output, dannTarget, label = "dann")
-
-                optimizer.zero_grad()
-                loss.backward(retain_graph = True)
-                nn.utils.clip_grad_norm_(model.parameters(), max_norm = 1)
-                optimizer.step()
-
-                lossLst.append(loss.item())
-                accLst.append(1 - self.mape(output, target))
-                # persAccList.append(self.persAcc(output, target))
-            scheduler.step()
-
-            print(f"epoch {epoch + 1} training loss: {sum(lossLst)/len(lossLst)} learning rate: {scheduler.get_last_lr()} training accuracy: {sum(accLst)/len(accLst)}")
-            
-
-            # print(f"pers category accuracy: {sum(persAccList)/len(persAccList)}")
-
-            # example output with the epoch
-            for outVal, targetVal in zip(output[-1][:3], target[-1][:3]):
-                    print(f"output: {outVal.item()}, target: {targetVal.item()}, difference: {outVal.item() - targetVal.item()}")
-
-    def evaluate(self, samples, model):
         print("============================")
         print("Evaluating...")
         print("============================")
@@ -188,76 +376,13 @@ class runModel:
 
         minData = dataProcessor.minFromMidnight(samples)
 
-        val_dataset = FeatureDataset(samples, glucoseData, edaData, hrData, tempData, accData, foodData, minData, hba1c, metric = self.glucMetric, dtype = self.dtype, seq_length = self.seq_length, normalize = self.normalize)
+        val_dataset = FeatureDataset(valSamples, glucoseData, edaData, hrData, tempData, accData, foodData, minData, hba1c, metric = self.glucMetric, dtype = self.dtype, seq_length = self.seq_length, transforms = custom_transform)
         # returns eda, hr, temp, then hba1c
-        val_dataloader = DataLoader(val_dataset, batch_size = self.batch_size, shuffle = True)
+        val_dataloader = DataLoader(val_dataset, batch_size = self.val_batch_size, shuffle = True)
 
         criterion = Loss(model_type = self.modelType)
 
-        with torch.no_grad():
-            for epoch in range(self.num_epochs):
-
-                progress_bar = tqdm(enumerate(val_dataloader), total=len(val_dataloader), desc=f'Epoch {epoch + 1}/{self.num_epochs}', unit='batch')
-                
-                lossLst = []
-                accLst = []
-                persAccList = []
-
-                len_dataloader = len(val_dataloader)
-                
-                # sample, edaMean, hrMean, tempMean, accMean, glucPastMean, glucMean
-
-                for batch_idx, (sample, sugar, carb, mins, hba1c, glucPast, glucPres) in progress_bar:
-                    # stack the inputs and feed as 3 channel input
-                    input = torch.stack((sugar, carb, mins, hba1c, glucPast)).permute((1,0,2)).to(self.dtype)
-
-                    target = glucPres
-
-                    # alpha value for dann model
-                    p = float(batch_idx + epoch * len_dataloader) / (self.num_epochs * len_dataloader)
-                    alpha = 2. / (1. + np.exp(-10 * p)) - 1
-                    
-                    # identify what type of outputs come from the model
-                    if self.modelType == "conv1d" or self.modelType == "lstm":
-                        output = model(input).to(self.dtype).squeeze()
-                    elif self.modelType == "transformer":
-                        output = model(target.view(target.shape[0], 1), input).to(self.dtype).squeeze()
-                    elif self.modelType == "dann":
-                        modelOut = model(input, alpha)
-                        _, output = modelOut[0], modelOut[1].to(self.dtype).squeeze()
-                    else:
-                        modelOut = model(input)
-                        _, output = modelOut[0], modelOut[1].to(self.dtype).squeeze()
-                    
-                    # loss is only calculated from the main task
-                    loss = criterion(output, target)
-
-                    lossLst.append(loss.item())
-                    accLst.append(1 - self.mape(output, target))
-                    # persAccList.append(self.persAcc(output, glucStats))
-
-                print(f"epoch {epoch} training loss: {sum(lossLst)/len(lossLst)} training accuracy: {sum(accLst)/len(accLst)}")
-
-                # print(f"pers category accuracy: {sum(persAccList)/len(persAccList)}")
-
-                # example output with the final epoch
-                for outVal, targetVal in zip(output[-1][:3], target[-1][:3]):
-                        print(f"output: {outVal.item()}, target: {targetVal.item()}, difference: {outVal.item() - targetVal.item()}")
-                
-
-    def mape(self, pred, target):
-        return (torch.mean(torch.div(torch.abs(target - pred), torch.abs(target)))).item()
-
-    # def persAcc(self, pred, glucStats):
-    #     return torch.mean((torch.abs(pred - glucStats["mean"]) < glucStats["std"]).to(torch.float64)).item()
-
-    def run(self):
-        samples = [str(i).zfill(3) for i in range(1, 17)]
-        trainSamples = samples[:-5]
-        valSamples = samples[-5:]
-        model = self.modelChooser(self.modelType, samples)
-        self.train(trainSamples, model)
-        self.evaluate(valSamples, model)
+        self.evaluate(model, val_dataloader, criterion)
 
 if __name__ == "__main__":
     mainDir = "/media/nvme1/expansion/glycemic_health_data/physionet.org/files/big-ideas-glycemic-wearable/1.1.2/"
