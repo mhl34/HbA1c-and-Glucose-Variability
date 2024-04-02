@@ -18,6 +18,9 @@ class DataProcessor:
         self.hrFormat = "HR_{0}.csv"
         self.tempFormat = "TEMP_{0}.csv"
         self.mainDir = mainDir
+
+        # method parameters
+        self.food_time = 6
       
     def loadData(self, samples, fileType):
         data = {}
@@ -113,10 +116,10 @@ class DataProcessor:
                 gluc_idx += 1
                 continue
             time_diff = abs(food_time - gluc_time)
-            if food_time < gluc_time and time_diff > timedelta(hours = 24):
+            if food_time < gluc_time and time_diff > timedelta(hours = self.food_time):
                 food_idx += 1
                 continue
-            elif food_time < gluc_time and time_diff <= timedelta(hours = 24):
+            elif food_time < gluc_time and time_diff <= timedelta(hours = self.food_time):
                 sugar_np_array[gluc_idx] += float(sugar_array[food_idx])
                 carb_np_array[gluc_idx] += float(carb_array[food_idx])
                 food_idx += 1
