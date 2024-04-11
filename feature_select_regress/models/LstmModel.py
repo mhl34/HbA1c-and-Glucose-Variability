@@ -17,7 +17,7 @@ class LstmModel(nn.Module):
         self.seq_len = seq_len
         self.bidirectional = bidirectional
         self.lstm_encoder = nn.LSTM(input_size = self.input_size * self.num_features, hidden_size = self.hidden_size, num_layers = self.num_layers, batch_first = self.batch_first, dropout = self.dropout_p, dtype = self.dtype, bidirectional = self.bidirectional)
-        # self.lstm_decoder = nn.LSTM(input_size = self.hidden_size, hidden_size = self.input_size, num_layers = self.num_layers, batch_first = self.batch_first, dropout = self.dropout_p, dtype = self.dtype)
+        self.lstm_decoder = nn.LSTM(input_size = self.hidden_size, hidden_size = self.hidden_size, num_layers = self.num_layers, batch_first = self.batch_first, dropout = self.dropout_p, dtype = self.dtype)
         self.fc1 = nn.Linear(self.hidden_size * 2 if self.bidirectional else self.hidden_size, 64, dtype = self.dtype)
         self.fc2 = nn.Linear(64, 32, dtype = self.dtype)
         self.fc3 = nn.Linear(32, self.input_size, dtype = self.dtype)
@@ -29,6 +29,8 @@ class LstmModel(nn.Module):
     def forward(self, x):
         x = x.reshape(x.size(0), -1).to(self.dtype)
         out, _ = self.lstm_encoder(x)
+
+        out, _ = self.lstm_decoder(out)       
 
         out = out.reshape(out.size(0), -1).to(self.dtype)
 
