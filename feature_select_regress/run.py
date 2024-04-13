@@ -74,7 +74,7 @@ class runModel:
         self.eps = 1e-12
 
         # lstm parameters 
-        self.hidden_size = 1024
+        self.hidden_size = 32
         self.num_layers = 2
 
         # transformer parameters
@@ -85,6 +85,7 @@ class runModel:
         self.checkpoint_folder = "/home/mhl34/HbA1c-and-Glucose-Variability/feature_select_regress/saved_models/"
         self.data_folder = "/home/mhl34/HbA1c-and-Glucose-Variability/feature_select_regress/data/"
         self.model_folder = "/home/mhl34/HbA1c-and-Glucose-Variability/feature_select_regress/model_arch/"
+        self.performance_folder = "/home/mhl34/HbA1c-and-Glucose-Variability/feature_select_regress/performance/"
 
     def modelChooser(self, modelType, samples):
         if modelType == "conv1d":
@@ -110,17 +111,18 @@ class runModel:
 
     def train(self, model, train_dataloader, optimizer, scheduler, criterion):
         best_acc = -float('inf')
+        global_loss_lst = []
+        global_acc_lst = []
         for epoch in range(self.num_epochs):
 
             np.random.shuffle(train_dataloader)
 
             progress_bar = tqdm(enumerate(train_dataloader), total=len(train_dataloader), desc=f'Epoch {epoch + 1}/{self.num_epochs}', unit='batch')
-            
-            lossLst = []
-            accLst = []
-            persAccList = []
 
             len_dataloader = len(train_dataloader)
+
+            lossLst = []
+            accLst = []
 
             # sample, edaMean, hrMean, tempMean, accMean, glucPastMean, glucMean
             
@@ -191,6 +193,9 @@ class runModel:
             avg_loss = sum(lossLst)/len(lossLst)
             avg_acc  = sum(accLst)/len(accLst)
 
+            global_loss_lst.append(avg_loss)
+            global_acc_lst.append(avg_acc)
+
             print(f"epoch {epoch + 1} training loss: {avg_loss} learning rate: {scheduler.get_last_lr()} training accuracy: {avg_acc}")
 
             if avg_acc > best_acc:
@@ -202,7 +207,11 @@ class runModel:
                             'epoch': epoch,
                             'lr': self.lr}
                     torch.save(state, os.path.join(self.checkpoint_folder, f'{self.modelType}.pth' if not self.no_gluc else f'{self.modelType}_no_gluc.pth'))
-            
+        
+        file_path_loss = f"{self.performance_folder}{self.modelType}_loss"
+        file_path_acc = f"{self.performance_folder}{self.modelType}_acc"
+        np.savez(file_path_acc, arr = np.array(global_acc_lst))
+        np.savez(file_path_loss, arr = np.array(global_loss_lst))
 
             # print(f"pers category accuracy: {sum(persAccList)/len(persAccList)}")
 
@@ -618,10 +627,16 @@ class runModel:
         transformer = TransformerModel(num_features = self.dim_model, num_head = self.num_head, seq_length = self.seq_length, dropout_p = self.dropout_p, norm_first = True, dtype = self.dtype, num_seqs = self.num_features, no_gluc = self.no_gluc)
         unet = UNet(self.num_features, normalize = False, seq_len = self.seq_length)
 
-        conv1d.load_state_dict(torch.load(self.checkpoint_folder + "conv1d.pth")['state_dict'])
-        lstm.load_state_dict(torch.load(self.checkpoint_folder + "lstm.pth")['state_dict'])
-        transformer.load_state_dict(torch.load(self.checkpoint_folder + "transformer.pth")['state_dict'])
-        unet.load_state_dict(torch.load(self.checkpoint_folder + "unet.pth")['state_dict'])
+        if self.no_gluc:
+            conv1d.load_state_dict(torch.load(self.checkpoint_folder + "conv1d_no_gluc.pth")['state_dict'])
+            lstm.load_state_dict(torch.load(self.checkpoint_folder + "lstm_no_gluc.pth")['state_dict'])
+            transformer.load_state_dict(torch.load(self.checkpoint_folder + "transformer_no_gluc.pth")['state_dict'])
+            unet.load_state_dict(torch.load(self.checkpoint_folder + "unet_no_gluc.pth")['state_dict'])
+        else:
+            conv1d.load_state_dict(torch.load(self.checkpoint_folder + "conv1d.pth")['state_dict'])
+            lstm.load_state_dict(torch.load(self.checkpoint_folder + "lstm.pth")['state_dict'])
+            transformer.load_state_dict(torch.load(self.checkpoint_folder + "transformer.pth")['state_dict'])
+            unet.load_state_dict(torch.load(self.checkpoint_folder + "unet.pth")['state_dict'])
 
         model_dict = {'conv1d': conv1d, 'lstm': lstm, 'transformer': transformer, 'unet': unet}
         output_dict = {'conv1d': None, 'lstm': None, 'transformer': None, 'unet': None, 'target': None}
@@ -655,14 +670,136 @@ class runModel:
         
         minutes = np.arange(0, 28 * 5, 5)
 
-        for key, value in output_dict.items():
-            plt.plot(minutes, value.detach().numpy()[-1], label=key)
+        plt.clf()
+        plt.figure(figsize = (8,6))
+        plt.gca().set_facecolor('white')
+        plt.grid(True, color='grey', linestyle='--')
 
-        plt.xlabel('Time (Minutes)')
-        plt.ylabel('Glucose Value (mg/dL)')
-        plt.title('Model Outputs')
+        color_dict = {
+            "conv1d": "red",
+            "unet": "green",
+            "lstm": "blue", 
+            "transformer": "orange",
+            "target": "purple"
+        }
+
+        linestyle_dict = {
+            "conv1d": "-",
+            "unet": "-",
+            "lstm": "-", 
+            "transformer": "--",
+            "target": "--"
+        }
+
+        linewidth_dict = {
+            "conv1d": 1,
+            "unet": 1,
+            "lstm": 1, 
+            "transformer": 4,
+            "target": 4
+        }
+
+        for key, value in output_dict.items():
+            plt.plot(minutes, value.detach().numpy()[-1], label = key, color=color_dict[key], linewidth = linewidth_dict[key], linestyle = linestyle_dict[key])
+
+        plt.xlabel('Time (Minutes)', fontsize=12, fontweight='bold')
+        plt.ylabel('Glucose Value (mg/dL)', fontsize=12, fontweight='bold')
+        plt.title('Model Outputs', fontsize=14, fontweight='bold')
         plt.legend()
-        plt.savefig('plots/output_plot.png')
+        plt.tight_layout()
+        if self.no_gluc:
+            plt.savefig('plots/output_plot_no_gluc.png')
+        else:
+            plt.savefig('plots/output_plot.png')
+
+    def plot_performance(self):
+        # load in accuracy arrays
+        conv1d_acc = np.load(self.performance_folder + "conv1d_acc.npz")['arr']
+        unet_acc = np.load(self.performance_folder + "unet_acc.npz")['arr']
+        lstm_acc = np.load(self.performance_folder + "lstm_acc.npz")['arr']
+        transformer_acc = np.load(self.performance_folder + "transformer_acc.npz")['arr']
+        
+        conv1d_loss = np.load(self.performance_folder + "conv1d_loss.npz")['arr']
+        unet_loss = np.load(self.performance_folder + "unet_loss.npz")['arr']
+        lstm_loss = np.load(self.performance_folder + "lstm_loss.npz")['arr']
+        transformer_loss = np.load(self.performance_folder + "transformer_loss.npz")['arr']
+
+        performance_dict = {
+            "conv1d": {
+                "acc": conv1d_acc,
+                "loss": conv1d_loss
+            },
+            "unet": {
+                "acc": unet_acc,
+                "loss": unet_loss
+            },
+            "lstm": {
+                "acc": lstm_acc,
+                "loss": lstm_loss
+            },
+            "transformer": {
+                "acc": transformer_acc,
+                "loss": transformer_loss
+            }
+        }
+
+        color_dict = {
+            "conv1d": "red",
+            "unet": "green",
+            "lstm": "blue", 
+            "transformer": "orange",
+            "target": "purple"
+        }
+
+        linestyle_dict = {
+            "conv1d": "-",
+            "unet": "-",
+            "lstm": "-", 
+            "transformer": "--",
+            "target": "--"
+        }
+
+        linewidth_dict = {
+            "conv1d": 1,
+            "unet": 1,
+            "lstm": 1, 
+            "transformer": 4,
+            "target": 4
+        }
+
+        plt.clf()
+        plt.figure(figsize=(8, 6))
+        plt.gca().set_facecolor('white')
+        plt.grid(True, color='grey', linestyle='--')
+        for key, val in performance_dict.items():
+            plt.plot(np.arange(len(val['acc'])), val['acc'] * 100, label = key, color = color_dict[key], linewidth = linewidth_dict[key], linestyle = linestyle_dict[key])
+            print(key)
+            print(val['acc'][-1] * 100)
+        plt.xlabel("Epochs", fontsize=12, fontweight='bold')
+        plt.ylabel("Accuracy (100 - MAPE)", fontsize=12, fontweight='bold')
+        plt.title('Model Accuracy', fontsize=14, fontweight='bold')
+        # plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        # plt.legend(loc='lower center')
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig('plots/accuracy_plot_no_gluc.png')
+
+        plt.clf()
+        plt.figure(figsize=(8, 6))
+        plt.gca().set_facecolor('white')
+        plt.grid(True, color='grey', linestyle='--')
+        for key, val in performance_dict.items():
+            plt.plot(np.arange(len(val['loss'])), val['loss'], label = key, color = color_dict[key], linewidth = linewidth_dict[key], linestyle = linestyle_dict[key])
+            print(val['loss'][-1])
+        plt.xlabel("Epochs", fontsize=12, fontweight='bold')
+        plt.ylabel("Loss (MSE Loss)", fontsize=12, fontweight='bold')
+        plt.title('Model Loss', fontsize=14, fontweight='bold')
+        # plt.legend(loc='lower center')
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig('plots/loss_plot_no_gluc.png')
+
+
         
 
 
@@ -672,4 +809,5 @@ if __name__ == "__main__":
     obj = runModel(mainDir)
     # obj.plot_model()
     # obj.plot_output()
-    obj.run()
+    # obj.run()
+    obj.plot_performance()
